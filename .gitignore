@@ -1,0 +1,37 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter and data
+.ipynb_checkpoints/
+*.csv
+*.xlsx
+*.parquet
+
+# Virtual environments
+.venv/
+env/
+venv/
+.conda/
+*.env
+
+# VS Code
+.vscode/
+
+# Streamlit cache
+.streamlit/config.toml
+.streamlit/*.json
+.streamlit/cache/
+
+# Project data folders
+data/exports/
+data/sources/
+
