@@ -133,7 +133,7 @@ def main():
         st.write(f'Max number of tables: {spotrac_salary_cap_data_df['table_number'].max()}')
 
         spotrac_salary_team_salary_cap_pct_df = spotrac_salary_cap_data_df.groupby(['team', 'season'], observed=True).agg({'cap_hit_pct_league_cap': 'sum'}).reset_index()
-        st.dataframe(spotrac_salary_team_salary_cap_pct_df)
+        # st.dataframe(spotrac_salary_team_salary_cap_pct_df)
 
         spotrac_salary_overall_salary_cap_pct_df = spotrac_salary_team_salary_cap_pct_df.groupby(['season'], observed=True).agg({'cap_hit_pct_league_cap': 'mean'}).reset_index()
         # st.dataframe(spotrac_salary_overall_salary_cap_pct_df)
