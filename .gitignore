@@ -11,10 +11,10 @@ build/
 .eggs/
 
 # Jupyter and data
-.ipynb_checkpoints/
-*.csv
-*.xlsx
-*.parquet
+# .ipynb_checkpoints/
+# *.csv
+# *.xlsx
+# *.parquet
 
 # Virtual environments
 .venv/
@@ -32,6 +32,6 @@ venv/
 .streamlit/cache/
 
 # Project data folders
-data/exports/
-data/sources/
+# data/exports/
+# data/sources/
 
