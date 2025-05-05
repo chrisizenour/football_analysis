@@ -287,18 +287,20 @@ def main():
         with st.expander("Future uses of this dataset"):
             st.write("""
             For this analysis, I will use the following columns:
-            - cap_hit This represents the dollar amount spent by teams on players that counts toward their salary cap.
-            - pos This represents the position of the player.
-            - team This represents the team that the player plays for.
-            - season This represents the year of the season.
-            - table_number This represents the number of the table from Spotrac the player is on.
+            - 'cap_hit': This represents the dollar amount spent by teams on players that counts toward their salary cap.
+            - 'pos': This represents the position of the player.
+            - 'team': This represents the team that the player plays for.
+            - 'season': This represents the year of the season.
+            - 'table_number': This represents the number of the table from Spotrac the player is on.
                 - table 0 is the active roster
                 - table 1 and greater is the inactive roster
-            - position_level_one This is an engineered column the represents the highest positional grouping of the player
-            - position_level_two This is an engineered column the represents the second highest positional grouping of the player
+            - 'position_level_one': This is an engineered column the represents the highest positional grouping of the player (offense, defense, special team)
+            - 'position_level_two': This is an engineered column the represents the second highest positional grouping of the player (offensive_line, defensive_line, running_back, etc.)
             
-            - cap_hit_pct_league_cap This represents the percentage of the salary cap that the player consumed of the salary team salary cap.
-                - It is possible for teams to h
+            - 'cap_hit_pct_league_cap': This represents the percentage of the salary cap that the player consumed of that season's team salary cap.
+                - When summed, teams can have greater than 100% of the season's salary cap.
+                - Multiple instances of teams with greater than 100% of the salary cap are possible.
+                - Follow-on analysis will use the 'cap_hit' value and consider the each team's salary cap allocations to be 100% and the constituent proportions of the salary cap as the cap hit percentages.
             """)
 
     with tab2:
@@ -358,12 +360,36 @@ def main():
                 nfl_summary_stats_by_season_df = pd.concat(nfl_summary_dfs, axis=1)
                 st.write("By Season NFL Records Dataset")
                 st.dataframe(nfl_summary_stats_by_season_df)
+            st.write("""
+            - Season-to-season, there is stability in team performance as measured by pct
+            - Individual seasons show little variation and are emblematic of the overall dataset
+            - Given consistent nature of pct:
+                - What effects do changing salary cap allocations have on team performance as measured by pct?
+                
+            """)
 
+        with st.expander("Future uses of this dataset"):
+            st.write("""
+            For this analysis, I will use the following columns:
+            - 'nfl_team_name': This represents the name of the team.
+            - Team outcome (performance) metrics:
+                - 'pct': This represents the winning % of the team.
+                - 'w': This represents the number of wins of the team.
+                - 'l': This represents the number of losses of the team.
+                - 'pf': This represents the number of points for of the team.
+                - 'pa': This represents the number of points against of the team.
+                - 'net_pts': This represents the net points scored by the team.
+                - 'div_win_pct': This represents the winning % of the team in the division.
+                - 'conf_win_pct': This represents the winning % of the team in the conference.
+            - This analysis's initial line of effort will focus on the team's overall season winning percentage (pct).
+            
+            """)
 
 
 
     with tab3:
         st.markdown("#### Spotrac Data + Team Record Data")
+        st.write("Merge Spotrac Data and NFL Season Records Data")
         st.dataframe(spotrac_nfl_records_df)
         st.write(f'Number of Observations: {spotrac_nfl_records_df.shape[0]}')
 
@@ -372,9 +398,22 @@ def main():
         with st.expander("View Dataframe"):
             st.dataframe(spotrac_nfl_team_season_roster_df)
             st.write(f'Number of Observations: {spotrac_nfl_team_season_roster_df.shape[0]}')
+            st.write("""
+            - Notes on dataframe:
+                - 'roster_status': 
+                    - Engineered field that represents the portion of the roster that the player is on.
+                    - Derived from the table that the player appeared in, table 0 = active, table 1+ = inactive
+                - 'player_count':
+                    - Engineered field that represents the number of players on the roster that were either active or inactive players.
+                - 'cap_hit_sum':
+                    - Engineered field that represents the sum of the cap_hit values for the players on the roster that were either active or inactive players.
+                - 'player_count_prop':
+                    - Engineered field that represents the proportion of players on the roster that were either active or inactive players.
+                - 'cap_hit_prop':
+                    - Engineered field that represents the proportion of the cap_hit_sum is of that team-season-roster_status combination.
+                    - 'active' + 'inactive' = 100% of that team-season-roster_status combination's cap_hit_sum.
+            """)
         with st.expander("Cap Hit Salary Proportion Plots"):
-
-
             # Plotly boxplot
             overall_season_roster_status_cap_hit_prop_boxplot = px.box(
                 spotrac_nfl_team_season_roster_df,
@@ -405,7 +444,7 @@ def main():
             st.plotly_chart(overall_season_roster_status_cap_hit_prop_boxplot, use_container_width=True)
 
             st.write("""
-            - Variability has increased over time
+            - Variability has increased over time (increasing size of boxplot boxes and size of boxplot whiskers)
             - Proportion of salary cap devoted to the active roster has trended down as proportion of salary cap devoted to the inactive roster has trended up
             """)
 
@@ -547,14 +586,6 @@ def main():
 
             st.plotly_chart(overall_season_roster_status_cap_hit_prop_active_winning_pct_boxplot, use_container_width=True)
 
-            st.write("""
-            Of the Active Roster portion of the Salary Cap, the following observations are made: 
-            - Greater than .500 Winning % tends to be in upper half of Active Salary Cap Proportion Boxplots
-                - Better performing teams devote most of their salary cap to players on the active roster
-            - Less than .500 Winning % tends to be in lower half of Active Salary Cap Proportion Boxplots
-                - Worse performing teams devote more of their salary cap to players on the inactive roster than the active roster
-            """)
-
             overall_season_roster_status_cap_hit_prop_inactive_winning_pct_boxplot = px.box(
                 overall_season_roster_status_cap_hit_prop_winning_pct_inactive_df,
                 x='season_str',
@@ -608,13 +639,26 @@ def main():
                             use_container_width=True)
 
             st.write("""
-            Of the Inactive Roster portion of the Salary Cap, the following observations are made:
-            - Greater than .500 Winning % tends to be in lower half of Inactive Salary Cap Proportion Boxplots
-                - Better performing teams devote less of their salary cap to players on the inactive roster than the active roster
-                - Better performing teams have fewer players on the inactive roster than the active roster
-            - Less than .500 Winning % tends to be in upper half of Inactive Salary Cap Proportion Boxplots
+            Of the Active Roster and Inactive Roster portions of the Salary Cap, the following observations are made:
+            - Active proportions and inactive proportions of the salary cap are slowly trending towards each other
+                - More salary cap space is devoted to the inactive roster over time
+                    - Changes to CBA?
+                    - Changes to team approach toward players that can't be on the active roster due to injury or other reasons?
+                    - Changes to practice squad sizes?
+                    - Teams needing to change practice and recovery strategies to improve recovery to minimize injuries that result in inactive players? 
+            - Greater than .500 Winning % tends to be in upper half of Active Salary Cap Proportion Boxplots
+                - Better performing teams devote most of their salary cap to players on the active roster
+                - Better performing teams have "better luck, better recovery, better training, etc." that leads to few players (less salary cap) on the inactive roster
+            - Less than .500 Winning % tends to be in lower half of Active Salary Cap Proportion Boxplots
                 - Worse performing teams devote more of their salary cap to players on the inactive roster than the active roster
-                - Worse performing teams have more players on the inactive roster than the active roster
+                - Worse performing teams have "worse luck, worse recovery, worse training, etc." that leads to more players (more salary cap) on the inactive roster
+            - 2011 - 2016:
+                - Teams (colored points), by visual inspection, appear to show less divergence (dispersion)
+                - Better performing teams (blue) and worse performing teams (red) have greater mixing
+            - 2017 - 2024:
+                - Teams (colored points), by visual inspection, appear to show greater divergence (dispersion)
+                - Better performing teams (blue) and worse performing teams (red) have less mixing
+            - Overall, the change in salary cap proportion allocations have not resulted in a change league winning percentages at the overall dataset level or on a season-to-season basis
             """)
 
 
