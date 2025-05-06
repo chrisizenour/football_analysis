@@ -100,8 +100,6 @@ def summary_stats_df(df, cols):
     return summary_stats_results_df
 
 def main():
-
-
     # st.set_page_config('NFL Salary Cap Analysis, 2011 - 2024', layout="wide", page_icon=":football:")
     st.markdown('# NFL Salary Cap Analysis, 2011 - 2024')
     st.markdown("""
@@ -119,11 +117,12 @@ def main():
     spotrac_nfl_records_df = load_spotrac_nfl_records_dataset(project_data_exports_path)
     spotrac_nfl_team_season_roster_df = load_spotrac_nfl_team_season_roster_df_dataset(project_data_exports_path)
 
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         'Spotrac Data',
         'Team Record Data',
         'Spotrac Data + Team Record Data',
-        'Team - Season - Roster Status EDA'
+        'Team - Season - Roster Status EDA',
+        'Team - Season - Roster Status Unsupervised Learning'
     ])
 
     with tab1:
@@ -530,11 +529,11 @@ def main():
             st.dataframe(tab4_df)
 
         with st.expander("Cap Hit Salary Proportion with Winning Pct Plots"):
-            overall_season_roster_status_cap_hit_prop_winning_pct_active_df = spotrac_nfl_team_season_roster_df.loc[spotrac_nfl_team_season_roster_df['roster_status'] == 'active', :]
+            overall_season_roster_status_cap_hit_prop_winning_pct_active_df = spotrac_nfl_team_season_roster_df.loc[spotrac_nfl_team_season_roster_df['roster_status'] == 'active', :].copy()
             overall_season_roster_status_cap_hit_prop_winning_pct_active_df['season_str'] = overall_season_roster_status_cap_hit_prop_winning_pct_active_df['season'].astype(str)
             overall_season_roster_status_cap_hit_prop_winning_pct_inactive_df = spotrac_nfl_team_season_roster_df.loc[
                                                                               spotrac_nfl_team_season_roster_df[
-                                                                                  'roster_status'] == 'inactive', :]
+                                                                                  'roster_status'] == 'inactive', :].copy()
             overall_season_roster_status_cap_hit_prop_winning_pct_inactive_df['season_str'] = \
             overall_season_roster_status_cap_hit_prop_winning_pct_inactive_df['season'].astype(str)
 
@@ -661,6 +660,31 @@ def main():
             - Overall, the change in salary cap proportion allocations have not resulted in a change league winning percentages at the overall dataset level or on a season-to-season basis
             """)
 
+    with tab5:
+        st.markdown("#### Team - Season - Roster Status Unsupervised Learning")
+        st.write("""
+        What underlying structures are there to the Spotrac salary cap data?
+        """)
+        with st.expander("Methodology"):
+            st.write("""
+            - Dataset for analysis was the spotrac_nfl_team_season_roster_df
+            - Dataframe is in long format, so each team-season combination had two rows, one for each roster status (active and inactive)
+                - player_count_prop and cap_hit_prop fields for active and inactive roster statuses add up to 1.0, so only the rows with the active roster status are used
+            - In addition to player_count_prop and cap_hit_prop, the season field is also used
+            - The resulting dataset used for unsupervised learning contain 448 observations and 3 columns (season, player_count_prop, and cap_hit_prop)
+            - Three different unsupervised learning models were used:
+                - KMeans clustering
+                - Gaussian Mixture Model
+                - DBSCAN clustering
+            - After performing unsupervised learning, cluster assignments for each row are applied to the original dataset, spotrac_nfl_team_season_roster_df
+            - The original dataset with cluster assignments is then grouped by cluster and the mean values for each cluster are calculated 
+            """)
+        with st.expander("Original and Filtered Datasets"):
+            st.write("Original Dataset: spotrac_nfl_team_season_roster_df")
+            st.dataframe(spotrac_nfl_team_season_roster_df)
+            st.write("---")
+            st.write("Clustering Dataset: Filtered spotrac_nfl_team_season_roster_df")
+            st.dataframe(spotrac_nfl_team_season_roster_df.loc[spotrac_nfl_team_season_roster_df['roster_status'] == 'active', ['season', 'player_count_prop', 'cap_hit_prop', ]])
 
 if __name__ == "__main__":
     main()
