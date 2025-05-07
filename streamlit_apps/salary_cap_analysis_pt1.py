@@ -48,6 +48,7 @@ def load_nfl_season_records_dataset(project_data_exports_path):
     df = enforce_dtypes(df, dtype_map)
     return df
 
+@st.cache_data
 def load_spotrac_nfl_records_dataset(project_data_exports_path):
     df = pd.read_csv(
         project_data_exports_path / 'spotrac_nfl_records_df.csv',
@@ -62,6 +63,7 @@ def load_spotrac_nfl_records_dataset(project_data_exports_path):
     df = enforce_dtypes(df, dtype_map)
     return df
 
+@st.cache_data
 def load_spotrac_nfl_team_season_roster_df_dataset(project_data_exports_path):
     df = pd.read_csv(
         project_data_exports_path / 'spotrac_nfl_team_season_roster_df.csv',
@@ -75,6 +77,70 @@ def load_spotrac_nfl_team_season_roster_df_dataset(project_data_exports_path):
     dtype_map = {'season': 'int'}
     df = enforce_dtypes(df, dtype_map)
     return df
+
+@st.cache_data
+def load_kmc_labeled_df_dataset(project_data_exports_path):
+    df = pd.read_csv(
+        project_data_exports_path / 'kmc_labeled_df.csv',
+        # sheet_name='Sheet1',
+        # header=1,
+        # engine='openpyxl',
+    )
+    # df = df.iloc[:-2]
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'])
+    dtype_map = {'season': 'int'}
+    df = enforce_dtypes(df, dtype_map)
+    df['label'] = pd.Categorical(df['label'].astype(str))
+    return df
+
+@st.cache_data
+def load_kmc_grouped_clusters_labeled_df_dataset(project_data_exports_path):
+    df = pd.read_csv(
+        project_data_exports_path / 'kmc_grouped_clusters_labeled_df.csv',
+        # sheet_name='Sheet1',
+        # header=1,
+        # engine='openpyxl',
+    )
+    # df = df.iloc[:-2]
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'])
+    dtype_map = {'season': 'int'}
+    df = enforce_dtypes(df, dtype_map)
+    return df
+
+@st.cache_data
+def load_gmm_labeled_df_dataset(project_data_exports_path):
+    df = pd.read_csv(
+        project_data_exports_path / 'gmm_labeled_df.csv',
+        # sheet_name='Sheet1',
+        # header=1,
+        # engine='openpyxl',
+    )
+    # df = df.iloc[:-2]
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'])
+    dtype_map = {'season': 'int'}
+    df = enforce_dtypes(df, dtype_map)
+    df['label'] = pd.Categorical(df['label'].astype(str))
+    return df
+
+@st.cache_data
+def load_gmm_grouped_clusters_labeled_df_dataset(project_data_exports_path):
+    df = pd.read_csv(
+        project_data_exports_path / 'gmm_grouped_clusters_labeled_df.csv',
+        # sheet_name='Sheet1',
+        # header=1,
+        # engine='openpyxl',
+    )
+    # df = df.iloc[:-2]
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'])
+    dtype_map = {'season': 'int'}
+    df = enforce_dtypes(df, dtype_map)
+    return df
+
+
 
 def enforce_dtypes(df: pd.DataFrame, dtypes: dict) -> pd.DataFrame:
     for col, dtype in dtypes.items():
@@ -116,6 +182,11 @@ def main():
     nfl_season_records_df = load_nfl_season_records_dataset(project_data_exports_path)
     spotrac_nfl_records_df = load_spotrac_nfl_records_dataset(project_data_exports_path)
     spotrac_nfl_team_season_roster_df = load_spotrac_nfl_team_season_roster_df_dataset(project_data_exports_path)
+    kmc_labeled_df = load_kmc_labeled_df_dataset(project_data_exports_path)
+    kmc_grouped_clusters_labeled_df = load_kmc_grouped_clusters_labeled_df_dataset(project_data_exports_path)
+    gmm_labeled_df = load_gmm_labeled_df_dataset(project_data_exports_path)
+    gmm_grouped_clusters_labeled_df = load_gmm_grouped_clusters_labeled_df_dataset(project_data_exports_path)
+    
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         'Spotrac Data',
@@ -679,12 +750,203 @@ def main():
             - After performing unsupervised learning, cluster assignments for each row are applied to the original dataset, spotrac_nfl_team_season_roster_df
             - The original dataset with cluster assignments is then grouped by cluster and the mean values for each cluster are calculated 
             """)
-        with st.expander("Original and Filtered Datasets"):
+
+        with st.expander("Original and Filtered Dataset used for clustering"):
             st.write("Original Dataset: spotrac_nfl_team_season_roster_df")
             st.dataframe(spotrac_nfl_team_season_roster_df)
             st.write("---")
             st.write("Clustering Dataset: Filtered spotrac_nfl_team_season_roster_df")
             st.dataframe(spotrac_nfl_team_season_roster_df.loc[spotrac_nfl_team_season_roster_df['roster_status'] == 'active', ['season', 'player_count_prop', 'cap_hit_prop', ]])
+
+        with st.expander("KMeans Clustering"):
+            st.write("""
+            - Elbow Plot and Average Cluster Silhouette Score plot indicate 4 clusters as optimal cluster quantity
+            """)
+            st.write('---')
+            st.write('spotrac_nfl_team_season_roster_df with KMeans Cluster Assignments')
+            kmc_labeled_df_clusters = kmc_labeled_df['label'].unique()
+            kmc_labeled_df_clusters_choice = st.multiselect('Select KMeans Cluster(s) to View', kmc_labeled_df_clusters, default=kmc_labeled_df_clusters)
+            st.dataframe(kmc_labeled_df.loc[kmc_labeled_df['label'].isin(kmc_labeled_df_clusters_choice), :])
+            st.write("---")
+
+            kmc_labeled_df_numerical_cols = ['season', 'player_count', 'cap_hit_sum', 'player_count_prop', 'cap_hit_prop',
+    'w', 'l', 'pct', 'pf', 'pa', 'net_pts', 'div_win_pct', 'conf_win_pct',
+    'pc_1', 'pc_2',]
+            kmc_labeled_df_categorical_cols = ['team', 'label']
+            kmc_labeled_df_color_cols = kmc_labeled_df_numerical_cols + kmc_labeled_df_categorical_cols
+            kmc_col1, kmc_col2, kmc_col3 = st.columns(3)
+            with kmc_col1:
+                kmc_x_col = st.selectbox('Select X-Axis Column', options=kmc_labeled_df_numerical_cols,
+                                         index=kmc_labeled_df_numerical_cols.index('pc_1'), key='kmc_x_axis')
+            with kmc_col2:
+                kmc_y_col = st.selectbox('Select Y-Axis Column', options=kmc_labeled_df_numerical_cols,
+                                         index=kmc_labeled_df_numerical_cols.index('pc_2'), key='kmc_y_axis')
+            with kmc_col3:
+                kmc_color_col = st.selectbox('Select Color', options=kmc_labeled_df_color_cols,
+                                             index=kmc_labeled_df_color_cols.index('label'), key='kmc_color')
+
+            if not kmc_labeled_df.empty:
+                is_discrete = kmc_color_col in kmc_labeled_df_categorical_cols or (kmc_color_col == 'label') or kmc_labeled_df[kmc_color_col].nunique() < 10
+                kmc_color_param = dict(
+                    color=kmc_color_col,
+                    color_discrete_sequence=px.colors.qualitative.Plotly if is_discrete else None,
+                    color_continuous_scale=None if is_discrete else 'Viridis'
+                )
+
+                kmc_labeled_df_scatterplot = px.scatter(
+                    kmc_labeled_df,
+                    x=kmc_x_col,
+                    y=kmc_y_col,
+                    **kmc_color_param,
+                    hover_data=['team', 'season'],
+                    opacity=0.7,
+                    size_max=10
+                )
+
+                # Hide color bar for discrete colors
+                if is_discrete:
+                    kmc_labeled_df_scatterplot.update_traces(marker=dict(showscale=False))
+
+                # Update layout
+                kmc_labeled_df_scatterplot.update_layout(
+                    title=f"Scatter Plot: {kmc_x_col} vs {kmc_y_col} (Colored by {kmc_color_col})",
+                    xaxis_title=kmc_x_col.replace('_', ' ').title(),
+                    yaxis_title=kmc_y_col.replace('_', ' ').title(),
+                    legend_title=kmc_color_col.replace('_', ' ').title(),
+                    template='plotly_white',
+                    height=600,
+                    showlegend=True
+                )
+
+                st.plotly_chart(kmc_labeled_df_scatterplot, use_container_width=True)
+
+
+            st.write('Cluster means for spotrac_nfl_team_season_roster_df')
+            st.dataframe(kmc_grouped_clusters_labeled_df)
+            st.write("---")
+            st.write("""
+            Observations concerning the cluster means dataframe:
+            - Cluster 0:
+                - Superior performance relative to other clusters as measured by pct and other metrics
+                - On average, 81% of annual salary cap expenditures on the active roster
+                - On average, 39% of players that register a cap hit are on the active roster
+                - On average, 60% overall winning percentage
+            - Cluster 2:
+                - Better cap_hit_prop and player_count_prop values for the active roster than of Cluster 0
+                    - On average, 87% of salary cap expenditures go toward the active roster (81% for Cluster 0)
+                    - On average, 69% of players that register a cap hit are on the active roster (39% for Cluster 0)
+                - Overall winning percentage is roughly equal to Average League winning percentage over the entire dataset
+            - Potential explanations for difference between Cluster 0 and Cluster 2:
+                - On average, Cluster 0 scored ~45 more points per season than did Cluster 2; hinting at better scoring abilities
+                - On average, Cluster 2 did a better job keeping salary cap affecting players on the active roster (69% vs 39%)
+            """)
+        
+        with st.expander("Gaussian Mixture Model (GMM) Clustering"):
+            st.write("""
+            - BIC and AIC vs Number of Components curves indicate 4 clusters as optimal cluster quantity
+            """)
+            st.write('spotrac_nfl_team_season_roster_df with GMM Cluster Assignments')
+            gmm_labeled_df_clusters = gmm_labeled_df['label'].unique()
+            gmm_labeled_df_clusters_choice = st.multiselect('Select GMM Cluster(s) to View', gmm_labeled_df_clusters,
+                                                            default=gmm_labeled_df_clusters)
+            st.dataframe(gmm_labeled_df.loc[gmm_labeled_df['label'].isin(gmm_labeled_df_clusters_choice), :])
+            st.write("---")
+
+            gmm_labeled_df_numerical_cols = ['season', 'player_count', 'cap_hit_sum', 'player_count_prop',
+                                             'cap_hit_prop',
+                                             'w', 'l', 'pct', 'pf', 'pa', 'net_pts', 'div_win_pct', 'conf_win_pct',
+                                             'pc_1', 'pc_2', ]
+            gmm_labeled_df_categorical_cols = ['team', 'label']
+            gmm_labeled_df_color_cols = gmm_labeled_df_numerical_cols + gmm_labeled_df_categorical_cols
+            gmm_col1, gmm_col2, gmm_col3 = st.columns(3)
+            with gmm_col1:
+                gmm_x_col = st.selectbox('Select X-Axis Column', options=gmm_labeled_df_numerical_cols,
+                                         index=gmm_labeled_df_numerical_cols.index('pc_1'), key='gmm_x_axis')
+            with gmm_col2:
+                gmm_y_col = st.selectbox('Select Y-Axis Column', options=gmm_labeled_df_numerical_cols,
+                                         index=gmm_labeled_df_numerical_cols.index('pc_2'), key='gmm_y_axis')
+            with gmm_col3:
+                gmm_color_col = st.selectbox('Select Color', options=gmm_labeled_df_color_cols,
+                                             index=gmm_labeled_df_color_cols.index('label'), key='gmm_color')
+
+            if not gmm_labeled_df.empty:
+                is_discrete = gmm_color_col in gmm_labeled_df_categorical_cols or (gmm_color_col == 'label') or \
+                              gmm_labeled_df[gmm_color_col].nunique() < 10
+                gmm_color_param = dict(
+                    color=gmm_color_col,
+                    color_discrete_sequence=px.colors.qualitative.Plotly if is_discrete else None,
+                    color_continuous_scale=None if is_discrete else 'Viridis'
+                )
+
+                gmm_labeled_df_scatterplot = px.scatter(
+                    gmm_labeled_df,
+                    x=gmm_x_col,
+                    y=gmm_y_col,
+                    **gmm_color_param,
+                    hover_data=['team', 'season'],
+                    opacity=0.7,
+                    size_max=10
+                )
+
+                # Hide color bar for discrete colors
+                if is_discrete:
+                    gmm_labeled_df_scatterplot.update_traces(marker=dict(showscale=False))
+
+                # Update layout
+                gmm_labeled_df_scatterplot.update_layout(
+                    title=f"Scatter Plot: {gmm_x_col} vs {gmm_y_col} (Colored by {gmm_color_col})",
+                    xaxis_title=gmm_x_col.replace('_', ' ').title(),
+                    yaxis_title=gmm_y_col.replace('_', ' ').title(),
+                    legend_title=gmm_color_col.replace('_', ' ').title(),
+                    template='plotly_white',
+                    height=600,
+                    showlegend=True
+                )
+
+                st.plotly_chart(gmm_labeled_df_scatterplot, use_container_width=True)
+
+            st.write('Cluster means for spotrac_nfl_team_season_roster_df')
+            st.dataframe(gmm_grouped_clusters_labeled_df)
+            st.write("---")
+            st.write("""
+            Observations concerning the cluster means dataframe:
+            - Cluster 0:
+                - Superior performance relative to other clusters as measured by pct and other metrics
+                    - On average, 82% of annual salary cap expenditures on the active roster
+                    - On average, 39% of players that register a cap hit are on the active roster
+                    - On average, 62% overall winning percentage
+            - Cluster 2:
+                - Second best performance relative to other clusters as measured by pct and other metrics
+                    - On average, 85% of annual salary cap expenditures on the active roster
+                    - On average, 70% of players that register a cap hit are on the active roster
+                - Overall winning percentage is roughly equal to Average League winning percentage over the entire dataset
+            - Potential explanations for difference between Cluster 0 and Cluster 2:
+                - On average, Cluster 0 scored ~60 more points per season than did Cluster 2; hinting at better scoring abilities
+                - On average, Cluster 0 allowed ~8 fewer point per season than did Cluster 2; hinting at better defensive abilities
+                - On average, Cluster 2 did a better job keeping salary cap affecting players on the active roster (70% vs 39%)
+            """)
+
+        with st.expander("DBSCAN Clustering"):
+            st.write("""
+            DBSCAN clustering was performed, but the algorithm struggled with the dataset and returned all datapoints as belonging to the same, single cluster
+            """)
+
+        with st. expander("Clustering Takeaways"):
+            st.write("""
+            - cap_hit_prop and player_count_prop hint at better team performance outcomes, but are partially counfounded
+                - cap_hit_prop 
+            - Cluster 0 for both approaches considered to be the cluster of superior performance
+                - KMC average pct: 60%, GMM average pct: 62%
+                - KMC average cap_hit_prop: 81%, GMM average cap_hit_prop: 82%
+                - KMC average player_count_prop: 39%, GMM average player_count_prop: 39%
+                - KMC average net_points: +50, GMM average net_points: +64
+                - KMC average pf: 407 (~45 more than second best cluster), GMM average pf: 415 (~60 more than second best cluster)
+                - KMC average pa: 356 (~3 less than second best cluster), GMM average pa: 352 (~8 less than second best cluster)
+            - GMM included fewer observations in Cluster 0 than did KMC (83 vs 125), though they both had the same count for Cluster 2, 60
+                - All 83 observations from GMM Cluster 0 appear in KMC's Cluster 0
+                - KMC and GMM shared 54 of 60 observations that each labeled for inclusion into Cluster 2
+            """)
+
 
 if __name__ == "__main__":
     main()
