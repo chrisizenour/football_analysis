@@ -933,8 +933,12 @@ def main():
 
         with st. expander("Clustering Takeaways"):
             st.write("""
-            - cap_hit_prop and player_count_prop hint at better team performance outcomes, but are partially counfounded
-                - cap_hit_prop 
+            - cap_hit_prop and player_count_prop hint at better team performance outcomes, but are confounded
+                - On average, teams with 80%+ of annual salary cap expenditures on the active roster had both superior and average performance outcomes as measured by pct and other scoring metrics
+                    - One difference between these samples is that the Cluster 2s had a higher proportion of players on the active roster (~69%) than did Cluster 0s (~39%)
+                    - Cluster 2s had, on average, more players (~57) on the active roster than did Cluster 0s (~53), 
+                    and Cluster 2s proportionally (~31% vs ~61%) had fewer players on the inactive roster. So those 
+                    teams' active players may have greater durability, utilize better training and recovery techniques, and are potentially overpaid given scoring performance metrics
             - Cluster 0 for both approaches considered to be the cluster of superior performance
                 - KMC average pct: 60%, GMM average pct: 62%
                 - KMC average cap_hit_prop: 81%, GMM average cap_hit_prop: 82%
@@ -944,7 +948,7 @@ def main():
                 - KMC average pa: 356 (~3 less than second best cluster), GMM average pa: 352 (~8 less than second best cluster)
             - GMM included fewer observations in Cluster 0 than did KMC (83 vs 125), though they both had the same count for Cluster 2, 60
                 - All 83 observations from GMM Cluster 0 appear in KMC's Cluster 0
-                - KMC and GMM shared 54 of 60 observations that each labeled for inclusion into Cluster 2
+                - KMC and GMM shared 54 of 60 (90%) observations that each labeled for inclusion into Cluster 2
             """)
 
 
