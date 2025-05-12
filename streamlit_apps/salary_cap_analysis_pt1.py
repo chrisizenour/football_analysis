@@ -1,6 +1,7 @@
 # streamlit run streamlit_apps/salary_cap_analysis_pt1.py
 
 import streamlit as st
+import joblib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,7 +14,7 @@ import sys
 # Ensure the top-level project directory is in the Python path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from path_config import project_path, project_data_sources_path, project_data_exports_path
+from path_config import project_path, project_data_sources_path, project_data_exports_path, project_pt_1_models_path
 
 # Set the page config first before any output
 st.set_page_config('NFL Salary Cap Analysis, 2011 - 2024', layout="wide", page_icon=":football:")
@@ -140,7 +141,15 @@ def load_gmm_grouped_clusters_labeled_df_dataset(project_data_exports_path):
     df = enforce_dtypes(df, dtype_map)
     return df
 
-
+# load trained models
+lr_model_pt_1 = joblib.load(project_pt_1_models_path / 'lr_model.pkl')
+tree_model_pt_1 = joblib.load(project_pt_1_models_path / 'tree_model.pkl')
+knn_model_pt_1 = joblib.load(project_pt_1_models_path / 'knn_model.pkl')
+rf_model_pt_1 = joblib.load(project_pt_1_models_path / 'rf_model.pkl')
+ridge_model_pt_1 = joblib.load(project_pt_1_models_path / 'ridge_model.pkl')
+lasso_model_pt_1 = joblib.load(project_pt_1_models_path / 'lasso_model.pkl')
+elasticnet_model_pt_1 = joblib.load(project_pt_1_models_path / 'elasticnet_model.pkl')
+xgbr_model_pt_1 = joblib.load(project_pt_1_models_path / 'xgbr_model.pkl')
 
 def enforce_dtypes(df: pd.DataFrame, dtypes: dict) -> pd.DataFrame:
     for col, dtype in dtypes.items():
@@ -188,12 +197,14 @@ def main():
     gmm_grouped_clusters_labeled_df = load_gmm_grouped_clusters_labeled_df_dataset(project_data_exports_path)
     
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         'Spotrac Data',
         'Team Record Data',
         'Spotrac Data + Team Record Data',
-        'Team - Season - Roster Status EDA',
-        'Team - Season - Roster Status Unsupervised Learning'
+        'EDA - Pt 1',
+        'Unsupervised Learning - Pt 1',
+        'Supervised Learning - Pt 1',
+        'Predictive Modeling - Pt 1'
     ])
 
     with tab1:
@@ -357,20 +368,20 @@ def main():
         with st.expander("Future uses of this dataset"):
             st.write("""
             For this analysis, I will use the following columns:
-            - 'cap_hit': This represents the dollar amount spent by teams on players that counts toward their salary cap.
-            - 'pos': This represents the position of the player.
-            - 'team': This represents the team that the player plays for.
-            - 'season': This represents the year of the season.
-            - 'table_number': This represents the number of the table from Spotrac the player is on.
+            - `cap_hit`: This represents the dollar amount spent by teams on players that counts toward their salary cap.
+            - `pos`: This represents the position of the player.
+            - `team`: This represents the team that the player plays for.
+            - `season`: This represents the year of the season.
+            - `table_number`: This represents the number of the table from Spotrac the player is on.
                 - table 0 is the active roster
                 - table 1 and greater is the inactive roster
-            - 'position_level_one': This is an engineered column the represents the highest positional grouping of the player (offense, defense, special team)
-            - 'position_level_two': This is an engineered column the represents the second highest positional grouping of the player (offensive_line, defensive_line, running_back, etc.)
+            - `position_level_one`: This is an engineered column the represents the highest positional grouping of the player (offense, defense, special team)
+            - `position_level_two`: This is an engineered column the represents the second highest positional grouping of the player (offensive_line, defensive_line, running_back, etc.)
             
-            - 'cap_hit_pct_league_cap': This represents the percentage of the salary cap that the player consumed of that season's team salary cap.
+            - `cap_hit_pct_league_cap`: This represents the percentage of the salary cap that the player consumed of that season's team salary cap.
                 - When summed, teams can have greater than 100% of the season's salary cap.
                 - Multiple instances of teams with greater than 100% of the salary cap are possible.
-                - Follow-on analysis will use the 'cap_hit' value and consider the each team's salary cap allocations to be 100% and the constituent proportions of the salary cap as the cap hit percentages.
+                - Follow-on analysis will use the `cap_hit` value and consider the each team's salary cap allocations to be 100% and the constituent proportions of the salary cap as the cap hit percentages.
             """)
 
     with tab2:
@@ -431,27 +442,27 @@ def main():
                 st.write("By Season NFL Records Dataset")
                 st.dataframe(nfl_summary_stats_by_season_df)
             st.write("""
-            - Season-to-season, there is stability in team performance as measured by pct
+            - Season-to-season, there is stability in team performance as measured by `pct`
             - Individual seasons show little variation and are emblematic of the overall dataset
-            - Given consistent nature of pct:
-                - What effects do changing salary cap allocations have on team performance as measured by pct?
+            - Given consistent nature of `pct`:
+                - What effects do changing salary cap allocations have on team performance as measured by `pct`?
                 
             """)
 
         with st.expander("Future uses of this dataset"):
             st.write("""
             For this analysis, I will use the following columns:
-            - 'nfl_team_name': This represents the name of the team.
+            - `nfl_team_name`: This represents the name of the team.
             - Team outcome (performance) metrics:
-                - 'pct': This represents the winning % of the team.
-                - 'w': This represents the number of wins of the team.
-                - 'l': This represents the number of losses of the team.
-                - 'pf': This represents the number of points for of the team.
-                - 'pa': This represents the number of points against of the team.
-                - 'net_pts': This represents the net points scored by the team.
-                - 'div_win_pct': This represents the winning % of the team in the division.
-                - 'conf_win_pct': This represents the winning % of the team in the conference.
-            - This analysis's initial line of effort will focus on the team's overall season winning percentage (pct).
+                - `pct`: This represents the winning % of the team.
+                - `w`: This represents the number of wins of the team.
+                - `l`: This represents the number of losses of the team.
+                - `pf`: This represents the number of points for of the team.
+                - `pa`: This represents the number of points against of the team.
+                - `net_pts`: This represents the net points scored by the team.
+                - `div_win_pct`: This represents the winning % of the team in the division.
+                - `conf_win_pct`: This represents the winning % of the team in the conference.
+            - This analysis's initial line of effort will focus on the team's overall season winning percentage (`pct`).
             
             """)
 
@@ -470,18 +481,18 @@ def main():
             st.write(f'Number of Observations: {spotrac_nfl_team_season_roster_df.shape[0]}')
             st.write("""
             - Notes on dataframe:
-                - 'roster_status': 
+                - `roster_status`: 
                     - Engineered field that represents the portion of the roster that the player is on.
                     - Derived from the table that the player appeared in, table 0 = active, table 1+ = inactive
-                - 'player_count':
+                - `player_count`:
                     - Engineered field that represents the number of players on the roster that were either active or inactive players.
-                - 'cap_hit_sum':
-                    - Engineered field that represents the sum of the cap_hit values for the players on the roster that were either active or inactive players.
-                - 'player_count_prop':
+                - `cap_hit_sum`:
+                    - Engineered field that represents the sum of the `cap_hit` values for the players on the roster that were either active or inactive players.
+                - `player_count_prop`:
                     - Engineered field that represents the proportion of players on the roster that were either active or inactive players.
-                - 'cap_hit_prop':
-                    - Engineered field that represents the proportion of the cap_hit_sum is of that team-season-roster_status combination.
-                    - 'active' + 'inactive' = 100% of that team-season-roster_status combination's cap_hit_sum.
+                - `cap_hit_prop`:
+                    - Engineered field that represents the proportion of the `cap_hit_sum` is of that team-season-roster_status combination.
+                    - 'active' + 'inactive' = 100% of that team-season-roster_status combination's `cap_hit_sum`.
             """)
         with st.expander("Cap Hit Salary Proportion Plots"):
             # Plotly boxplot
@@ -739,10 +750,10 @@ def main():
         with st.expander("Methodology"):
             st.write("""
             - Dataset for analysis was the spotrac_nfl_team_season_roster_df
-            - Dataframe is in long format, so each team-season combination had two rows, one for each roster status (active and inactive)
-                - player_count_prop and cap_hit_prop fields for active and inactive roster statuses add up to 1.0, so only the rows with the active roster status are used
-            - In addition to player_count_prop and cap_hit_prop, the season field is also used
-            - The resulting dataset used for unsupervised learning contain 448 observations and 3 columns (season, player_count_prop, and cap_hit_prop)
+            - Dataframe is in long format, so each team-season combination had two rows, one for each `roster_status` (active and inactive)
+                - `player_count_prop` and `cap_hit_prop` fields for active and inactive roster statuses add up to 1.0, so only the rows with the active roster status are used
+            - In addition to `player_count_prop` and `cap_hit_prop`, the `season` field is also used
+            - The resulting dataset used for unsupervised learning contain 448 observations and 3 columns (`season`, `player_count_prop`, and `cap_hit_prop`)
             - Three different unsupervised learning models were used:
                 - KMeans clustering
                 - Gaussian Mixture Model
@@ -832,7 +843,7 @@ def main():
                 - On average, 39% of players that register a cap hit are on the active roster
                 - On average, 60% overall winning percentage
             - Cluster 2:
-                - Better cap_hit_prop and player_count_prop values for the active roster than of Cluster 0
+                - Better `cap_hit_prop` and `player_count_prop` values for the active roster than of Cluster 0
                     - On average, 87% of salary cap expenditures go toward the active roster (81% for Cluster 0)
                     - On average, 69% of players that register a cap hit are on the active roster (39% for Cluster 0)
                 - Overall winning percentage is roughly equal to Average League winning percentage over the entire dataset
@@ -933,23 +944,219 @@ def main():
 
         with st. expander("Clustering Takeaways"):
             st.write("""
-            - cap_hit_prop and player_count_prop hint at better team performance outcomes, but are confounded
-                - On average, teams with 80%+ of annual salary cap expenditures on the active roster had both superior and average performance outcomes as measured by pct and other scoring metrics
+            - `cap_hit_prop` and `player_count_prop` hint at better team performance outcomes, but are confounded
+                - On average, teams with 80%+ of annual salary cap expenditures on the active roster had both superior and average performance outcomes as measured by `pct` and other scoring metrics
                     - One difference between these samples is that the Cluster 2s had a higher proportion of players on the active roster (~69%) than did Cluster 0s (~39%)
                     - Cluster 2s had, on average, more players (~57) on the active roster than did Cluster 0s (~53), 
                     and Cluster 2s proportionally (~31% vs ~61%) had fewer players on the inactive roster. So those 
                     teams' active players may have greater durability, utilize better training and recovery techniques, and are potentially overpaid given scoring performance metrics
             - Cluster 0 for both approaches considered to be the cluster of superior performance
-                - KMC average pct: 60%, GMM average pct: 62%
-                - KMC average cap_hit_prop: 81%, GMM average cap_hit_prop: 82%
-                - KMC average player_count_prop: 39%, GMM average player_count_prop: 39%
-                - KMC average net_points: +50, GMM average net_points: +64
-                - KMC average pf: 407 (~45 more than second best cluster), GMM average pf: 415 (~60 more than second best cluster)
-                - KMC average pa: 356 (~3 less than second best cluster), GMM average pa: 352 (~8 less than second best cluster)
+                - KMC average `pct`: 60%, GMM average `pct`: 62%
+                - KMC average `cap_hit_prop`: 81%, GMM average `cap_hit_prop`: 82%
+                - KMC average `player_count_prop`: 39%, GMM average `player_count_prop`: 39%
+                - KMC average `net_points`: +50, GMM average `net_points`: +64
+                - KMC average `pf`: 407 (~45 more than second best cluster), GMM average `pf`: 415 (~60 more than second best cluster)
+                - KMC average `pa`: 356 (~3 less than second best cluster), GMM average `pa`: 352 (~8 less than second best cluster)
             - GMM included fewer observations in Cluster 0 than did KMC (83 vs 125), though they both had the same count for Cluster 2, 60
                 - All 83 observations from GMM Cluster 0 appear in KMC's Cluster 0
                 - KMC and GMM shared 54 of 60 (90%) observations that each labeled for inclusion into Cluster 2
             """)
+
+    with tab6:
+        st.markdown("#### Team - Season - Roster Status Supervised Learning")
+
+
+    with tab7:
+        st.markdown("#### Predictive Modeling")
+        with st.expander("Model Predictions"):
+            tab7col1, tab7col2 = st.columns(2)
+            with tab7col1:
+                active_cap_hit_prop_choice = st.number_input('Enter Active Cap Hit Proportion (0 - 1)', min_value=0.0,
+                                                   max_value=1.0, value=0.8, step=0.01)
+            with tab7col2:
+                active_player_count_prop_choice = st.number_input('Enter Active Player Count Proportion (0 - 1)',
+                                                              min_value=0.0, max_value=1.0, value=0.8, step=0.01)
+            input_data = pd.DataFrame({
+                'cap_hit_prop': [active_cap_hit_prop_choice],
+                'player_count_prop': [active_player_count_prop_choice]
+            })
+
+            models = {
+                "Linear Regression": lr_model_pt_1,
+                "Decision Tree": tree_model_pt_1,
+                "K-Nearest Neighbors": knn_model_pt_1,
+                "Random Forest": rf_model_pt_1,
+                "Ridge Regression": ridge_model_pt_1,
+                "Lasso Regression": lasso_model_pt_1,
+                "ElasticNet": elasticnet_model_pt_1,
+                "XGBoost": xgbr_model_pt_1
+            }
+
+            predictions = {}
+
+            if st.button('Predict with All Models'):
+                for model_name, model in models.items():
+                    try:
+                        prediction = model.predict(input_data)
+                        # Ensure the prediction is a scalar by flattening arrays
+                        if isinstance(prediction, (list, np.ndarray)):
+                            prediction = np.array(prediction).flatten()[0]  # Flatten and take the first element
+                        # Check if the prediction is a scalar (including NumPy scalars) and can be converted to a float
+                        if not (np.isscalar(prediction) and np.isreal(prediction)):
+                            raise ValueError(f"Prediction is not a numeric scalar: {prediction}")
+                        predictions[model_name] = float(prediction)  # Convert to float for consistency
+                    except Exception as e:
+                        predictions[model_name] = f"Error: {str(e)}"
+
+                st.markdown("### Prediction Results (Winning Percentage, pct)")
+                results_df = pd.DataFrame.from_dict(predictions, orient='index', columns=['Predicted Winning %'])
+                results_df['Predicted Winning %'] = results_df['Predicted Winning %'].apply(
+                    lambda x: f"{x:.4f}" if isinstance(x, (int, float)) else x
+                )
+                st.dataframe(results_df, use_container_width=True)
+
+                if all(isinstance(pred, (int, float)) for pred in predictions.values()):
+                    max_model = max(predictions, key=predictions.get)
+                    min_model = min(predictions, key=predictions.get)
+                    st.write(f"**Highest Prediction**: {max_model} ({predictions[max_model]:.4f})")
+                    st.write(f"**Lowest Prediction**: {min_model} ({predictions[min_model]:.4f})")
+                else:
+                    st.warning("Some models failed to predict. Check the errors above.")
+
+        with st.expander("View Bar Chart"):
+            if predictions:
+                fig_bar = go.Figure(data=[
+                    go.Bar(x=list(predictions.keys()), y=list(predictions.values()),
+                           text=[f"{v:.4f}" if isinstance(v, (int, float)) else v for v in predictions.values()],
+                           textposition='auto')
+                ])
+                fig_bar.update_layout(
+                    title="Model Predictions for Winning Percentage (pct)",
+                    xaxis_title="Model",
+                    yaxis_title="Predicted Winning %",
+                    height=500,
+                    margin=dict(l=40, r=40, t=40, b=40)
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+            else:
+                st.write("No predictions available. Please click 'Predict with All Models' to generate results.")
+
+        with st.expander("View Radar Chart"):
+            numeric_predictions = {k: v for k, v in predictions.items() if isinstance(v, (int, float))}
+            if numeric_predictions:
+                fig_radar = go.Figure(data=go.Scatterpolar(
+                    r=list(numeric_predictions.values()),
+                    theta=list(numeric_predictions.keys()),
+                    fill='toself',
+                    text=[f"{v:.4f}" for v in numeric_predictions.values()],
+                    hovertemplate="Model: %{theta}<br>Prediction: %{r:.4f}<extra></extra>"
+                ))
+                fig_radar.update_layout(
+                    polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
+                    title="Radar Chart of Model Predictions",
+                    height=500,
+                    margin=dict(l=40, r=40, t=40, b=40)
+                )
+                st.plotly_chart(fig_radar, use_container_width=True)
+            else:
+                st.write("No numeric predictions available for radar chart. Please click 'Predict with All Models' to generate results.")
+
+        # Visualization: Surface Plots with Checkbox to Toggle cmin/cmax
+        with st.expander("View Feature Impact on Winning Percentage (pct)"):
+            st.write("These 3D surface plots show how predicted winning percentage (pct) changes as `cap_hit_prop` and `player_count_prop` vary for each model. All axes range from 0 to 1, with blue at 0.0, white at 0.5, and red at 1.0.")
+
+            # Checkbox to toggle cmin and cmax
+            use_cmin_cmax = st.checkbox("Force colorbar range to [0, 1] (shows all ticks but may reduce color variation)", value=False)
+
+            # Create a grid of values for cap_hit_prop and player_count_prop, ensuring range 0 to 1
+            cap_hit_range = np.linspace(0, 1, 100)
+            player_count_range = np.linspace(0, 1, 100)
+            cap_hit_grid, player_count_grid = np.meshgrid(cap_hit_range, player_count_range)
+
+            # Flatten the grids for prediction
+            grid_data = pd.DataFrame({
+                'cap_hit_prop': cap_hit_grid.ravel(),
+                'player_count_prop': player_count_grid.ravel()
+            })
+
+            # Define custom colorscale: blue (0.0) to white (0.5) to red (1.0)
+            custom_colorscale = [[0.0, 'blue'], [0.5, 'white'], [1.0, 'red']]
+
+            # Predict for each model across the grid
+            surface_predictions = {}
+            for model_name, model in models.items():
+                try:
+                    preds = model.predict(grid_data)
+                    # Clip predictions to [0, 1] to match the requested range
+                    preds = np.clip(preds, 0, 1)
+                    # Reshape predictions back to grid shape
+                    surface_predictions[model_name] = preds.reshape(cap_hit_grid.shape)
+                except Exception as e:
+                    st.warning(f"Could not generate surface plot for {model_name}: {str(e)}")
+                    surface_predictions[model_name] = None
+
+            # Create a surface plot for each model with additional ticks and toggled cmin/cmax
+            for model_name, surface_data in surface_predictions.items():
+                if surface_data is not None:
+                    # Configure surface plot based on checkbox
+                    if use_cmin_cmax:
+                        # Force colorbar range to [0, 1]
+                        surface_kwargs = dict(
+                            cmin=0.0,
+                            cmax=1.0,
+                            colorscale=custom_colorscale,
+                            showscale=True,
+                            colorbar=dict(
+                                title='Predicted Winning %',
+                                tickvals=[i / 10 for i in range(11)],  # Ticks at 0.0, 0.1, 0.2, ..., 1.0
+                                ticktext=[f"{i/10:.1f}" for i in range(11)],  # Labels as 0.0, 0.1, ..., 1.0
+                                len=0.7,
+                                y=0.5,
+                                ticks='outside',
+                                tickfont=dict(size=12)
+                            )
+                        )
+                    else:
+                        # Let Plotly auto-scale the colorscale
+                        surface_kwargs = dict(
+                            colorscale=custom_colorscale,
+                            showscale=True,
+                            colorbar=dict(
+                                title='Predicted Winning %',
+                                tickvals=[i / 10 for i in range(11)],  # Ticks at 0.0, 0.1, 0.2, ..., 1.0
+                                ticktext=[f"{i/10:.1f}" for i in range(11)],  # Labels as 0.0, 0.1, ..., 1.0
+                                len=0.7,
+                                y=0.5,
+                                ticks='outside',
+                                tickfont=dict(size=12)
+                            )
+                        )
+
+                    fig_surface = go.Figure(data=[
+                        go.Surface(
+                            x=cap_hit_grid,
+                            y=player_count_grid,
+                            z=surface_data,
+                            **surface_kwargs
+                        )
+                    ])
+                    fig_surface.update_layout(
+                        title=f"{model_name}: Winning Percentage (pct) vs Cap Hit Prop and Player Count Prop",
+                        scene=dict(
+                            xaxis_title='Cap Hit Proportion',
+                            yaxis_title='Player Count Proportion',
+                            zaxis_title='Predicted Winning %',
+                            xaxis=dict(range=[0, 1]),
+                            yaxis=dict(range=[0, 1]),
+                            zaxis=dict(range=[0, 1])
+                        ),
+                        height=600,
+                        margin=dict(l=40, r=40, t=40, b=40)
+                    )
+                    st.plotly_chart(fig_surface, use_container_width=True)
+                else:
+                    st.write(f"No surface plot available for {model_name} due to prediction errors.")
+
 
 
 if __name__ == "__main__":
