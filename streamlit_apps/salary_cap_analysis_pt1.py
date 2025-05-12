@@ -964,7 +964,51 @@ def main():
 
     with tab6:
         st.markdown("#### Team - Season - Roster Status Supervised Learning")
-
+        st.write("""
+        Predicting a team's season winning percentage based on the proportion of its salary cap allocated to players 
+        on its active roster and the proportion of its players on the active roster.
+        """)
+        with st.expander("Methodology"):
+            st.write("""
+            - Dataset for analysis was the spotrac_nfl_team_season_roster_df
+            - Dataframe is in long format, so each team-season combination had two rows, one for each `roster_status` (active and inactive)
+                - `player_count_prop` and `cap_hit_prop` fields for active and inactive roster statuses add up to 1.0, so only the rows with the active roster status are used
+            - The resulting dataset used for supervised learning contain 448 observations and 3 columns (`pct`, 
+            `player_ount_prop`,  and `cap_hit_prop`)
+            - The dataset was split into two subsets: 
+                - X: the independent variables `cap_hit_prop` and `player_count_prop`
+                - y: the dependent variable `pct`
+            - Using scikit-learn's train_test_split function, the X and y datasets were split into training and test 
+            splits,  33% of the 448 observations went to the test dataset, and 67% of the observations went to the training dataset
+            - 8 different regression algorithms were trained on the training dataset and then subsequently tested
+                - Linear Regression
+                - K-Nearest Neighbors Regression
+                - Decision Tree Regression
+                - Random Forest Regression
+                - Ridge Regression
+                - LASSO Regression
+                - Elastic Net Regression
+                - XGBoost Regression
+            - The battery of models were trained because each model can provide different insights into the data and 
+            taken together, could provide a better picture into the relationship between the independent and 
+            dependent variables
+                - For example, the Decision Tree Regression model provides a decision tree, Decision Tree and Random 
+                Forest provide feature importance information, and Ridge, LASSO, ElasticNet Regression models adjust 
+                coefficients.
+            - When training the models, scikit-learn's GridSearchCV function was used to find the optimal hyperparameters
+            - After generating predictions using the test set, plots were generated to ascertain the ability of the 
+            models to predict the dependent variable, `pct`
+            - All models were then tested on the full 448 observation dataset to provide a final assessment of model 
+            performance.
+            """)
+        with st.expander('Original and Filtered Dataset used for regression model training'):
+            st.write("Original Dataset: spotrac_nfl_team_season_roster_df")
+            st.dataframe(spotrac_nfl_team_season_roster_df)
+            st.write('---')
+            st.write('Regression model training dataset: Filtered spotrac_nfl_team_season_roster_df')
+            st.dataframe(spotrac_nfl_team_season_roster_df.loc[
+                             spotrac_nfl_team_season_roster_df['roster_status'] == 'active', ['player_count_prop',
+                                                                                              'cap_hit_prop', ]])
 
     with tab7:
         st.markdown("#### Predictive Modeling")
