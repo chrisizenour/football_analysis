@@ -2,8 +2,10 @@
 
 import streamlit as st
 import joblib
+import json
 import pandas as pd
 import numpy as np
+from sklearn.tree import export_text
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly_express as px
@@ -171,8 +173,72 @@ def summary_stats_df(df, cols):
         summary_stats_results,
         index=['count', 'mean', 'std', 'min', '25%', 'median', '75%', 'max', 'variance']
     )
-
     return summary_stats_results_df
+
+def get_transformed_feature_names(model, original_feature_names):
+    """
+    Extract the transformed feature names from a pipeline's ColumnTransformer.
+
+    Parameters:
+    - model: A GridSearchCV object containing a pipeline with a 'preprocessor' step.
+    - original_feature_names: List of original feature names before transformation.
+
+    Returns:
+    - List of transformed feature names.
+    """
+    # Access the ColumnTransformer
+    preprocessor = model.best_estimator_.named_steps['preprocessor']
+    # Get the transformed feature names
+    transformed_names = preprocessor.get_feature_names_out(original_feature_names)
+    # Clean up the names by removing the transformer prefix (e.g., 'num__' or 'cat__')
+    cleaned_names = [name.split('__')[-1] for name in transformed_names]
+    return cleaned_names
+
+
+def extract_model_info(model, model_name, original_feature_names):
+    """
+    Extract coefficients, decision tree structure, feature importances, and hyperparameters from a model.
+
+    Parameters:
+    - model: A GridSearchCV object containing a pipeline.
+    - model_name: Shorthand name of the model (e.g., 'lr', 'tree').
+    - original_feature_names: List of original feature names.
+
+    Returns:
+    - Dictionary containing the model information.
+    """
+    info = {}
+
+    # Access the best estimator (pipeline) and regressor
+    pipeline = model.best_estimator_
+    regressor = pipeline.named_steps['regressor']
+
+    # Get transformed feature names
+    transformed_features = get_transformed_feature_names(model, original_feature_names)
+
+    # Extract coefficients for Linear Regression, Ridge, Lasso, ElasticNet
+    if model_name in ["lr", "ridge", "lasso", "elasticnet"]:
+        coefs = regressor.coef_
+        info["coefficients"] = {feature: float(coef) for feature, coef in zip(transformed_features, coefs)}
+
+    # Extract decision tree structure and feature importances for Decision Tree
+    if model_name == "tree":
+        # Decision tree structure as text
+        tree_text = export_text(regressor, feature_names=transformed_features)
+        info["decision_tree"] = tree_text
+        # Feature importances
+        importances = regressor.feature_importances_
+        info["feature_importances"] = {feature: float(imp) for feature, imp in zip(transformed_features, importances)}
+
+    # Extract feature importances for Random Forest and XGBoost
+    if model_name in ["rf", "xgbr"]:
+        importances = regressor.feature_importances_
+        info["feature_importances"] = {feature: float(imp) for feature, imp in zip(transformed_features, importances)}
+
+    # Extract optimized hyperparameters from GridSearchCV
+    info["best_params"] = model.best_params_
+
+    return info
 
 def main():
     # st.set_page_config('NFL Salary Cap Analysis, 2011 - 2024', layout="wide", page_icon=":football:")
@@ -978,7 +1044,7 @@ def main():
             - The dataset was split into two subsets: 
                 - X: the independent variables `cap_hit_prop` and `player_count_prop`
                 - y: the dependent variable `pct`
-            - Using scikit-learn's train_test_split function, the X and y datasets were split into training and test 
+            - Using scikit-learn's train_test_split, the X and y datasets were split into training and test 
             splits,  33% of the 448 observations went to the test dataset, and 67% of the observations went to the training dataset
             - 8 different regression algorithms were trained on the training dataset and then subsequently tested
                 - Linear Regression
@@ -989,6 +1055,8 @@ def main():
                 - LASSO Regression
                 - Elastic Net Regression
                 - XGBoost Regression
+            - Using scikit-learn's pipeline, each model's training and prediction workflow was standardized to ensure consistency and to prevent data leakage
+            - The independent variables were not standardized for the Linear Regression and K-Nearest Neighbors models. These variables were on the same scale, from 0-1. The independent variables were standardized using scikit-learn's StandardScaler for the Ridge, LASSO, and ElasticNet models in order to aid in those algorithm's performance. 
             - The battery of models were trained because each model can provide different insights into the data and 
             taken together, could provide a better picture into the relationship between the independent and 
             dependent variables
@@ -1007,9 +1075,93 @@ def main():
             st.write('---')
             st.write('Regression model training dataset: Filtered spotrac_nfl_team_season_roster_df')
             st.dataframe(spotrac_nfl_team_season_roster_df.loc[
-                             spotrac_nfl_team_season_roster_df['roster_status'] == 'active', ['player_count_prop',
+                             spotrac_nfl_team_season_roster_df['roster_status'] == 'active', ['pct',
+                                                                                              'player_count_prop',
                                                                                               'cap_hit_prop', ]])
+        with st.expander('View Regression Model Diagnostics'):
+            feature_names_pt_1 = ['player_count_prop', 'cap_hit_prop']
+            models = {
+                "Linear Regression": lr_model_pt_1,
+                "Decision Tree": tree_model_pt_1,
+                "K-Nearest Neighbors": knn_model_pt_1,
+                "Random Forest": rf_model_pt_1,
+                "Ridge Regression": ridge_model_pt_1,
+                "Lasso Regression": lasso_model_pt_1,
+                "ElasticNet": elasticnet_model_pt_1,
+                "XGBoost": xgbr_model_pt_1
+            }
 
+            model_name_mapping_pt_1 = {
+                'Linear Regression': 'lr',
+                "Decision Tree": "tree",
+                "K-Nearest Neighbors": "knn",
+                "Random Forest": "rf",
+                "Ridge Regression": "ridge",
+                "Lasso Regression": "lasso",
+                "ElasticNet": "elasticnet",
+                "XGBoost": "xgbr"
+            }
+
+            # Dropdown to select which model's diagnostics to view
+            selected_regression_model_pt_1 = st.selectbox(
+                "Select Model to View Diagnostics",
+                options=list(models.keys()),
+                index=0
+            )
+
+            # Get the shorthand name for the selected model
+            regression_model_shorthand_pt_1 = model_name_mapping_pt_1[selected_regression_model_pt_1]
+
+            # Construct the path to the PNG file
+            regression_model_diagnostics_png_path_pt_1 = project_data_exports_path / f"{regression_model_shorthand_pt_1}_pred_error_residuals_qq_plot.png"
+
+            # Check if the file exists and display it
+            if regression_model_diagnostics_png_path_pt_1.exists():
+                st.image(
+                    str(regression_model_diagnostics_png_path_pt_1),
+                    caption=f"Model Diagnostics for {selected_regression_model_pt_1}: Prediction Error, Residuals, and Q-Q Plot",
+                    use_container_width=True
+                )
+            else:
+                st.error(
+                    f"Diagnostics plot for {selected_regression_model_pt_1} not found at {regression_model_diagnostics_png_path_pt_1}. Please ensure the PNG file has been generated.")
+
+            original_feature_names_pt_1 = ['cap_hit_prop', 'player_count_prop']
+
+            # Extract model information on the fly
+            try:
+                info = extract_model_info(models[selected_regression_model_pt_1], regression_model_shorthand_pt_1, original_feature_names_pt_1)
+
+                # Display coefficients for Linear Regression, Ridge, Lasso, ElasticNet
+                if "coefficients" in info:
+                    st.markdown(f"**Coefficients for {selected_regression_model_pt_1}**")
+                    coef_df = pd.DataFrame.from_dict(info["coefficients"], orient='index', columns=['Coefficient'])
+                    coef_df['Coefficient'] = coef_df['Coefficient'].apply(lambda x: f"{x:.4f}")
+                    st.dataframe(coef_df, use_container_width=True)
+
+                # Display decision tree structure for Decision Tree
+                if "decision_tree" in info:
+                    st.markdown(f"**Decision Tree Structure for {selected_regression_model_pt_1}**")
+                    st.code(info["decision_tree"], language="plaintext")
+
+                # Display feature importances for Decision Tree, Random Forest, XGBoost
+                if "feature_importances" in info:
+                    st.markdown(f"**Feature Importances for {selected_regression_model_pt_1}**")
+                    importance_df = pd.DataFrame.from_dict(info["feature_importances"], orient='index',
+                                                           columns=['Importance'])
+                    importance_df['Importance'] = importance_df['Importance'].apply(lambda x: f"{x:.4f}")
+                    st.dataframe(importance_df, use_container_width=True)
+
+                # Display optimized hyperparameters for all models
+                if "best_params" in info:
+                    st.markdown(f"**Optimized Hyperparameters for {selected_regression_model_pt_1}**")
+                    st.json(info["best_params"])
+                else:
+                    st.warning(f"No optimized hyperparameters available for {selected_regression_model_pt_1}.")
+            except Exception as e:
+                st.error(f"Failed to extract details for {selected_regression_model_pt_1}: {str(e)}")
+        with st.expander("Regression Model Takeaways"):
+            st.write('---')
     with tab7:
         st.markdown("#### Predictive Modeling")
         with st.expander("Model Predictions"):
