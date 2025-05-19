@@ -1341,6 +1341,10 @@ def main():
             - Models generally struggled predicting team winning percentage based on `cap_hit_prop` and `player_count_prop` though they were within ~2% of each other
                 - Models' Test Dataset RMSE values ranged from 0.1614 to 0.1888
                 - i.e., Predicted winning percentage were between 16% and 19% off from actual values
+                - XGBoost, Decision Tree, and Random Forest exhibit slight overfitting
+                - Linear Regression, Ridge, LASSO, and ElasticNet exhibit slight underfitting
+            - Model performance may be improved by adjusting the hyperparameters for each model
+            - Adding additional features may assist models in identifying patterns within the data that aid in predicting winning percentage
                 
                 """)
     with tab7:
