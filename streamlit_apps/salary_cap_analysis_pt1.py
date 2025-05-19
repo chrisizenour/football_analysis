@@ -5,6 +5,7 @@ import joblib
 import json
 import pandas as pd
 import numpy as np
+import scipy.stats as stats
 from sklearn.tree import export_text
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -82,6 +83,21 @@ def load_spotrac_nfl_team_season_roster_df_dataset(project_data_exports_path):
     return df
 
 @st.cache_data
+def load_spotrac_nfl_team_season_roster_wide_df_dataset(project_data_exports_path):
+    df = pd.read_csv(
+        project_data_exports_path / 'spotrac_nfl_team_season_roster_wide_df.csv',
+        # sheet_name='Sheet1',
+        # header=1,
+        # engine='openpyxl',
+    )
+    # df = df.iloc[:-2]
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'])
+    dtype_map = {'season': 'int'}
+    df = enforce_dtypes(df, dtype_map)
+    return df
+
+@st.cache_data
 def load_kmc_labeled_df_dataset(project_data_exports_path):
     df = pd.read_csv(
         project_data_exports_path / 'kmc_labeled_df.csv',
@@ -143,6 +159,21 @@ def load_gmm_grouped_clusters_labeled_df_dataset(project_data_exports_path):
     df = enforce_dtypes(df, dtype_map)
     return df
 
+@st.cache_data
+def load_supervised_learning_model_results_pt_1_df_dataset(project_data_exports_path):
+    df = pd.read_csv(
+        project_data_exports_path / 'model_results_df.csv',
+        # sheet_name='Sheet1',
+        # header=1,
+        # engine='openpyxl',
+    )
+    # df = df.iloc[:-2]
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'])
+    dtype_map = {'season': 'int'}
+    df = enforce_dtypes(df, dtype_map)
+    return df
+
 # load trained models
 lr_model_pt_1 = joblib.load(project_pt_1_models_path / 'lr_model.pkl')
 tree_model_pt_1 = joblib.load(project_pt_1_models_path / 'tree_model.pkl')
@@ -175,6 +206,89 @@ def summary_stats_df(df, cols):
     )
     return summary_stats_results_df
 
+def correlation_matrix(df):
+    """create correlation matrix dataframe"""
+    df_corr_mat = df.corr()
+    return df_corr_mat
+
+def correlation_series(df):
+    """create a dataframe which has unique feature pairs and their associated correlation coefficient"""
+    upper_corr_mat = df.where(np.triu(np.ones(df.shape), k=1).astype(bool))
+    unique_corr_pairs = upper_corr_mat.unstack().dropna()
+    df_corr_series = unique_corr_pairs.sort_values(ascending=False)
+    df_corr_series = df_corr_series.reset_index()
+    df_corr_series = df_corr_series.rename(columns={
+        'level_0': 'feature_1',
+        'level_1': 'feature_2',
+        0: 'correlation_coefficient'
+    })
+    return df_corr_series
+
+def correlation_plot(df, title='Correlation Heatmap'):
+    """create a correlation heatmap plot using seaborn"""
+    mask = np.triu(np.ones_like(df, dtype=bool))
+    f, ax = plt.subplots(1, 1, figsize=(11,9), facecolor='white')
+    cmap = sns.diverging_palette(230, 20, as_cmap=True)
+    sns.heatmap(df,
+                mask=mask,
+                cmap=cmap,
+                vmax=1,
+                vmin=-1,
+                center=0,
+                annot=False,
+                square=True,
+                linewidths=0.5,
+                cbar_kws={'shrink': 0.5})
+    ax.set_title(title)
+    ax.set_xlabel('Variables')
+    ax.set_ylabel('Variables')
+
+    plt.tight_layout()
+    return f
+
+def p_val_matrix(df):
+    """create p-value matrix dataframe"""
+    df_p_val_mat = df.corr(method=lambda x, y: stats.pearsonr(x, y)[1]) - np.eye(len(df.columns))
+    return df_p_val_mat
+
+def p_val_series(df):
+    """create a dataframe which has unique feature pairs and their associated level of statistical significance"""
+    upper_corr_mat = df.where(np.triu(np.ones(df.shape), k=1).astype(bool))
+    unique_p_val_pairs = upper_corr_mat.unstack().dropna()
+    df_p_val_series = unique_p_val_pairs.sort_values()
+    df_p_val_series = df_p_val_series.reset_index()
+    df_p_val_series = df_p_val_series.rename(columns={
+        'level_0': 'feature_1',
+        'level_1': 'feature_2',
+        0: 'p_value'
+    })
+    return df_p_val_series
+
+def p_val_plot(df, title="P-value Heatmap (Green: Significant, White: Not Significant)"):
+    """create a level of statistical significance heatmap plot using seaborn"""
+    alpha = 0.05
+    mask = np.triu(np.ones_like(df, dtype=bool))
+    f, ax = plt.subplots(1, 1, figsize=(11,9))
+    green = sns.light_palette('seagreen', reverse=True, as_cmap=True)
+    green.set_over('white')
+    # cmap = sns.diverging_palette(230, 20, as_cmap=True)
+    sns.heatmap(df,
+                mask=mask,
+                cmap=green,
+                # cmap=cmap,
+                vmax=alpha,
+                vmin=0,
+                # center=0,
+                annot=True,
+                square=True,
+                linewidths=0.5,
+                cbar_kws={'shrink': 0.5})
+    ax.set_title(title)
+    ax.set_xlabel('Variables')
+    ax.set_ylabel('Variables')
+    plt.tight_layout()
+    return f
+
 def get_transformed_feature_names(model, original_feature_names):
     """
     Extract the transformed feature names from a pipeline's ColumnTransformer.
@@ -197,7 +311,7 @@ def get_transformed_feature_names(model, original_feature_names):
 
 def extract_model_info(model, model_name, original_feature_names):
     """
-    Extract coefficients, decision tree structure, feature importances, and hyperparameters from a model.
+    Extract coefficients, intercept, decision tree structure, feature importances, and hyperparameters from a model.
 
     Parameters:
     - model: A GridSearchCV object containing a pipeline.
@@ -216,10 +330,15 @@ def extract_model_info(model, model_name, original_feature_names):
     # Get transformed feature names
     transformed_features = get_transformed_feature_names(model, original_feature_names)
 
-    # Extract coefficients for Linear Regression, Ridge, Lasso, ElasticNet
+    # Extract coefficients and intercept for Linear Regression, Ridge, Lasso, ElasticNet
     if model_name in ["lr", "ridge", "lasso", "elasticnet"]:
         coefs = regressor.coef_
-        info["coefficients"] = {feature: float(coef) for feature, coef in zip(transformed_features, coefs)}
+        # Initialize the coefficients dictionary with feature coefficients
+        coefficients_dict = {feature: float(coef) for feature, coef in zip(transformed_features, coefs)}
+        # Add the intercept to the dictionary
+        intercept = float(regressor.intercept_)
+        coefficients_dict["Intercept"] = intercept
+        info["coefficients"] = coefficients_dict
 
     # Extract decision tree structure and feature importances for Decision Tree
     if model_name == "tree":
@@ -257,11 +376,13 @@ def main():
     nfl_season_records_df = load_nfl_season_records_dataset(project_data_exports_path)
     spotrac_nfl_records_df = load_spotrac_nfl_records_dataset(project_data_exports_path)
     spotrac_nfl_team_season_roster_df = load_spotrac_nfl_team_season_roster_df_dataset(project_data_exports_path)
+    spotrac_nfl_team_season_roster_wide_df = load_spotrac_nfl_team_season_roster_wide_df_dataset(project_data_exports_path)
     kmc_labeled_df = load_kmc_labeled_df_dataset(project_data_exports_path)
     kmc_grouped_clusters_labeled_df = load_kmc_grouped_clusters_labeled_df_dataset(project_data_exports_path)
     gmm_labeled_df = load_gmm_labeled_df_dataset(project_data_exports_path)
     gmm_grouped_clusters_labeled_df = load_gmm_grouped_clusters_labeled_df_dataset(project_data_exports_path)
-    
+
+    supervised_learning_pt_1_model_results_df = load_supervised_learning_model_results_pt_1_df_dataset(project_data_exports_path)
 
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         'Spotrac Data',
@@ -545,6 +666,9 @@ def main():
         with st.expander("View Dataframe"):
             st.dataframe(spotrac_nfl_team_season_roster_df)
             st.write(f'Number of Observations: {spotrac_nfl_team_season_roster_df.shape[0]}')
+            st.write('---')
+            st.write("Wide version of `spotrac_nfl_team_season_roster_df`")
+            st.dataframe(spotrac_nfl_team_season_roster_wide_df)
             st.write("""
             - Notes on dataframe:
                 - `roster_status`: 
@@ -560,6 +684,37 @@ def main():
                     - Engineered field that represents the proportion of the `cap_hit_sum` is of that team-season-roster_status combination.
                     - 'active' + 'inactive' = 100% of that team-season-roster_status combination's `cap_hit_sum`.
             """)
+
+        with st.expander("Correlation Amongst Features"):
+            # st.dataframe(spotrac_nfl_team_season_roster_wide_df[['season', 'player_count_prop_active', 'cap_hit_prop_active']].corr())
+
+            corr_mat_df_pt_1 = correlation_matrix(spotrac_nfl_team_season_roster_wide_df[['season', 'player_count_prop_active', 'cap_hit_prop_active']])
+            pval_mat_df_pt_1 = p_val_matrix(spotrac_nfl_team_season_roster_wide_df[['season', 'player_count_prop_active', 'cap_hit_prop_active']])
+
+            corr_col1, corr_col2 = st.columns(2)
+            with corr_col1:
+                corr_mat_series_df_pt_1 = correlation_series(corr_mat_df_pt_1)
+                pval_mat_series_df_pt_1 = p_val_series(pval_mat_df_pt_1)
+
+                # st.dataframe(corr_mat_series_df_pt_1.style.format({'correlation_coefficient': '{:.5f}'}))
+                # st.dataframe(pval_mat_series_df_pt_1)
+                corr_mat_p_val_df_merged_pt_1 = pd.merge(corr_mat_series_df_pt_1, pval_mat_series_df_pt_1, left_on=['feature_1', 'feature_2'], right_on=['feature_1', 'feature_2'], how='left')
+                st.dataframe(corr_mat_p_val_df_merged_pt_1.style.format({
+                    'correlation_coefficient': '{:.5f}',
+                    'p_value': '{:.5e}'  # Ensure p_value is displayed in scientific notation
+                }))
+            with corr_col2:
+                corr_mat_plot_pt_1 = correlation_plot(corr_mat_df_pt_1)
+                st.pyplot(corr_mat_plot_pt_1, use_container_width=True)
+            st.write("""
+            - Moderate, positive linear correlation between `player_count_prop_active` and `cap_hit_prop_active`
+                - As the proportion of a team's players on the active roster increases the proportion of a team's salary cap going to the active roster increases
+            - Moderate, negative linear correlation between `cap_hit_prop_active` and `season`
+                - The proportion of a team's salary cap going to the active roster decreases over time (as the seasons increase from 2011 to 2024) 
+            - Moderate-to-almost strong negative linear correlation between `player_count_prop_active` and `season`
+                - The proportion of a team's players on the active roster decreases over time (as the seasons increase from 2011 to 2024)
+            """)
+
         with st.expander("Cap Hit Salary Proportion Plots"):
             # Plotly boxplot
             overall_season_roster_status_cap_hit_prop_boxplot = px.box(
@@ -1079,11 +1234,32 @@ def main():
                                                                                               'player_count_prop',
                                                                                               'cap_hit_prop', ]])
         with st.expander('View Regression Model Diagnostics'):
+            tab6col1, tab6col2 = st.columns(2)
+            with tab6col1:
+                st.write("Model Training RMSE Table")
+                st.dataframe(supervised_learning_pt_1_model_results_df)
+                st.write('')
+            with tab6col2:
+                st.write("Model Training RMSE Plot")
+                # Display the model_perf_rmse_plot.png
+                rmse_plot_path = project_data_exports_path / 'model_perf_rmse_plot.png'
+                if rmse_plot_path.exists():
+                    st.image(
+                        str(rmse_plot_path),
+                        caption="Model Performance RMSE Plot",
+                        use_container_width=True
+                    )
+                else:
+                    st.error(
+                        f"RMSE plot not found at {rmse_plot_path}. Please ensure the file 'model_perf_rmse_plot.png' exists in the specified directory."
+                    )
+
+
             feature_names_pt_1 = ['player_count_prop', 'cap_hit_prop']
             models = {
                 "Linear Regression": lr_model_pt_1,
-                "Decision Tree": tree_model_pt_1,
                 "K-Nearest Neighbors": knn_model_pt_1,
+                "Decision Tree": tree_model_pt_1,
                 "Random Forest": rf_model_pt_1,
                 "Ridge Regression": ridge_model_pt_1,
                 "Lasso Regression": lasso_model_pt_1,
@@ -1093,8 +1269,8 @@ def main():
 
             model_name_mapping_pt_1 = {
                 'Linear Regression': 'lr',
-                "Decision Tree": "tree",
                 "K-Nearest Neighbors": "knn",
+                "Decision Tree": "tree",
                 "Random Forest": "rf",
                 "Ridge Regression": "ridge",
                 "Lasso Regression": "lasso",
@@ -1161,7 +1337,12 @@ def main():
             except Exception as e:
                 st.error(f"Failed to extract details for {selected_regression_model_pt_1}: {str(e)}")
         with st.expander("Regression Model Takeaways"):
-            st.write('---')
+            st.write("""
+            - Models generally struggled predicting team winning percentage based on `cap_hit_prop` and `player_count_prop` though they were within ~2% of each other
+                - Models' Test Dataset RMSE values ranged from 0.1614 to 0.1888
+                - i.e., Predicted winning percentage were between 16% and 19% off from actual values
+                
+                """)
     with tab7:
         st.markdown("#### Predictive Modeling")
         with st.expander("Model Predictions"):
