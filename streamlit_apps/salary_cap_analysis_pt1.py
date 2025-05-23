@@ -17,7 +17,7 @@ import sys
 # Ensure the top-level project directory is in the Python path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from path_config import project_path, project_data_sources_path, project_data_exports_path, project_pt_1_models_path
+from path_config import project_path, project_data_sources_path, project_data_exports_path, project_pt_1_models_path, project_papers_path
 
 # Set the page config first before any output
 st.set_page_config('NFL Salary Cap Analysis, 2011 - 2024', layout="wide", page_icon=":football:")
@@ -384,7 +384,8 @@ def main():
 
     supervised_learning_pt_1_model_results_df = load_supervised_learning_model_results_pt_1_df_dataset(project_data_exports_path)
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    lit_review, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        'Literature Review',
         'Spotrac Data',
         'Team Record Data',
         'Spotrac Data + Team Record Data',
@@ -393,6 +394,73 @@ def main():
         'Supervised Learning - Pt 1',
         'Predictive Modeling - Pt 1'
     ])
+
+    with lit_review:
+        st.markdown("#### Literature Review")
+        st.write("By Christopher Izenour, MS Analytics | Last Updated: May 23, 2025")
+
+        # Load and display Markdown file
+        md_path = Path(project_papers_path) / "literature_review.md"
+        try:
+            with open(md_path, "r", encoding="utf-8") as f:
+                full_markdown = f.read()
+            st.markdown(full_markdown, unsafe_allow_html=True)
+        except FileNotFoundError:
+            st.error(f"Markdown file not found at {md_path}. Please ensure it was generated correctly.")
+
+        # Interactive Table 1
+        st.subheader("Table 1: Summary of Cited Studies")
+        table_data = pd.DataFrame({
+            "Study": ["Leeds & Kowalewski (2001)", "Borghesi (2008)", "Mondello & Maxcy (2009)",
+                      "Mulholland & Jensen (2019)", "Keefer (2017)", "Shin et al. (2023)"],
+            "Data Scope": ["~500 players, 1992–1994", "~352 team-seasons, 1994–2004",
+                           "~256 team-seasons, 2000–2007", "~2,500 players, 2011–2015",
+                           "~1,000–2,000 players, 2004–2012", "~660 MLB team-seasons, 2001–2022"],
+            "Methodology": ["Quantile regression", "OLS, Poisson regression", "OLS regression",
+                            "Regression, linear programming", "OLS regression", "GMM panel regression"],
+            "Key Findings": [
+                "Performance drives salaries; income inequality rises",
+                "Lower dispersion improves wins",
+                "High dispersion reduces wins; bonuses help QBs",
+                "Prioritize DEs, OLBs; rookie wins key",
+                "Sunk-cost retention harms performance",
+                "New hire budgets harm; star pay helps but weakens"
+            ],
+            "Limitations": [
+                "Skill position focus; two-year scope",
+                "Team-level focus; pre-2011 data",
+                "Team-level focus; outdated data",
+                "Assumes market efficiency; no cohesion focus",
+                "Pre-2013 data; no position focus",
+                "MLB context; no perception data"
+            ]
+        })
+        st.dataframe(table_data, use_container_width=True)
+
+        # Collapsible Study Details
+        # st.subheader("Study Details")
+        # with st.expander("Leeds & Kowalewski (2001)"):
+        #     st.markdown(
+        #         "Quantile regression on ~500 skill position players (1992–1994) showed post-CBA income inequality, with performance driving salaries. Limited to skill positions.")
+        # with st.expander("Borghesi (2008)"):
+        #     st.markdown(
+        #         "OLS/Poisson regression on ~352 team-seasons (1994–2004) found lower dispersion improves wins via team cohesion.")
+        # with st.expander("Mondello & Maxcy (2009)"):
+        #     st.markdown(
+        #         "OLS on ~256 team-seasons (2000–2007) showed high dispersion harms wins; bonuses help QBs. Outdated data.")
+        # with st.expander("Mulholland & Jensen (2019)"):
+        #     st.markdown(
+        #         "Regression/linear programming on ~2,500 players (2011–2015) prioritized DEs (13.7%), OLBs (15.2%). Assumes market efficiency, lacks cohesion focus.")
+        # with st.expander("Keefer (2017)"):
+        #     st.markdown(
+        #         "OLS on ~1,000–2,000 players (2004–2012) showed sunk-cost retention harms performance. Pre-2013 data.")
+        # with st.expander("Shin et al. (2023)"):
+        #     st.markdown(
+        #         "GMM on ~660 MLB team-seasons (2001–2022) found new hire budgets harm performance; star pay helps but weakens in top teams. MLB context.")
+
+        # Tooltips for key terms
+        st.info("**RBV**: Resource-Based View, a framework for leveraging unique resources for competitive advantage.")
+        st.info("**AV**: Approximate Value, a Pro-Football-Reference metric for player performance.")
 
     with tab1:
         st.markdown("#### Spotrac Data")
@@ -1196,6 +1264,7 @@ def main():
                 - `player_count_prop` and `cap_hit_prop` fields for active and inactive roster statuses add up to 1.0, so only the rows with the active roster status are used
             - The resulting dataset used for supervised learning contain 448 observations and 3 columns (`pct`, 
             `player_ount_prop`,  and `cap_hit_prop`)
+                - `season` was not used as it would prevent out-of-sample predictions from being performed
             - The dataset was split into two subsets: 
                 - X: the independent variables `cap_hit_prop` and `player_count_prop`
                 - y: the dependent variable `pct`
@@ -1340,7 +1409,7 @@ def main():
             st.write("""
             - Models generally struggled predicting team winning percentage based on `cap_hit_prop` and `player_count_prop` though they were within ~2% of each other
                 - Models' Test Dataset RMSE values ranged from 0.1614 to 0.1888
-                - i.e., Predicted winning percentage were between 16% and 19% off from actual values
+                    - i.e., Predicted winning percentage were between 16% and 19% off from actual values
                 - XGBoost, Decision Tree, and Random Forest exhibit slight overfitting
                 - Linear Regression, Ridge, LASSO, and ElasticNet exhibit slight underfitting
             - Model performance may be improved by adjusting the hyperparameters for each model

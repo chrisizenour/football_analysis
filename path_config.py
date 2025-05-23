@@ -13,3 +13,6 @@ project_data_exports_path = project_path / 'data' / 'exports'
 project_pt_1_models_path = project_path / 'models' / 'pt_1'
 project_pt_2_models_path = project_path / 'models' / 'pt_2'
 project_pt_3_models_path = project_path / 'models' / 'pt_3'
+
+# Define papers directory
+project_papers_path = project_path / 'papers'
