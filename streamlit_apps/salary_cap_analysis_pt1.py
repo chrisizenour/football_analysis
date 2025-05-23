@@ -393,13 +393,10 @@ def main():
         'Unsupervised Learning - Pt 1',
         'Supervised Learning - Pt 1',
         'Predictive Modeling - Pt 1',
-        'Take Aways - Pt 1, Next Steps'
+        'Takeaways - Pt 1, Way Ahead for Pt 2'
     ])
 
     with lit_review:
-        st.markdown("#### Literature Review")
-        st.write("By Christopher Izenour, MS Analytics | Last Updated: May 23, 2025")
-
         # Load and display Markdown file
         md_path = Path(project_papers_path) / "literature_review.md"
         try:

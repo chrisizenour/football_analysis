@@ -1,6 +1,5 @@
 # NFL SALARY CAP ANALYSIS LITERATURE REVIEW
-
-## CHRISTOPHER IZENOUR, MS ANALYTICS
+Christopher Izenour, MS Analytics
 
 # Purpose
 
@@ -8,7 +7,7 @@ This literature review examines research relevant to optimal salary cap allocati
 
 # Background and Context
 
-The NFL’s hard salary cap, introduced in 1994 as part of the NFL–NFL Players’ Association (NFLPA) Collective Bargaining Agreement (CBA), limits team spending on player salaries to promote competitive balance (Borghesi, 2008; Spotrac, n.d.). The cap was $34.6M in 1994, $120.6M in 2011, and $255.4M in 2024, with an uncapped year in 2010 (Spotrac, n.d.). Over 31 years, the cap has shaped roster strategies, offering a rich context for studying resource allocation (Borghesi, 2008; Larsen et al., 2006). Recent CBAs (e.g., 2011, 2020) introduced expanded rookie contract structures and cap flexibility, influencing allocation strategies.
+The NFL’s hard salary cap, introduced in 1994 as part of the NFL–NFL Players’ Association (NFLPA) Collective Bargaining Agreement (CBA), limits team spending on player salaries to promote competitive balance (Borghesi, 2008; Spotrac, n.d.). The cap was \$34.6M in 1994, \$120.6M in 2011, and \$255.4M in 2024, with an uncapped year in 2010 (Spotrac, n.d.). Over 31 years, the cap has shaped roster strategies, offering a rich context for studying resource allocation (Borghesi, 2008; Larsen et al., 2006). Recent CBAs (e.g., 2011, 2020) introduced expanded rookie contract structures and cap flexibility, influencing allocation strategies.
 
 Coincident with the salary cap’s evolution, data science and artificial intelligence/machine learning (AI/ML) have transformed sports analytics (Morgulev et al., 2018). Teams leverage computational advancements to analyze gameplay, player selection, and front-office decisions. As compute and storage costs decline and processing power increases, teams adopting data-driven approaches gain a competitive edge. This review integrates insights from economic, statistical, and organizational perspectives to guide the development of an updated allocation model.
 
@@ -54,7 +53,7 @@ The studies offer complementary insights. Leeds and Kowalewski (2001) highlight 
 
 Table 1 summarizes the studies’ characteristics and limitations, highlighting gaps addressed by this project.
 
-Most studies rely on pre-2015 data, missing the cap’s growth ($120.6M in 2011 to $255.4M in 2024), growth in inactive roster spending that counts against a team’s salary cap, and CBA changes (e.g., rookie contract structures, cap flexibility). Leeds and Kowalewski (2001) exclude defensive and line positions, while Borghesi (2008) and Mondello and Maxcy (2009) lack player-level granularity. Keefer (2017) and Mulholland and Jensen (2019) use more recent data but miss 2016–2024 trends, such as declining running back valuations. Shin et al. (2023) offer a contemporary dataset but require NFL adaptation. Traditional methods (e.g., OLS, linear programming) and public datasets (e.g., salaries, AV) limit capturing non-linear dynamics. No study uses AI/ML, which could analyze 2011–2024 data to predict winning percentages, integrating player-level (e.g., performance, injuries) and team-level (e.g., coaching) factors. Underexplored areas include defensive positions (e.g., safeties, cornerbacks), performance bonuses, sunk-cost fallacies, and RBV applications to NFL front-office expertise.
+Most studies rely on pre-2015 data, missing the cap’s growth (\$120.6M in 2011 to \$255.4M in 2024), growth in inactive roster spending that counts against a team’s salary cap, and CBA changes (e.g., rookie contract structures, cap flexibility). Leeds and Kowalewski (2001) exclude defensive and line positions, while Borghesi (2008) and Mondello and Maxcy (2009) lack player-level granularity. Keefer (2017) and Mulholland and Jensen (2019) use more recent data but miss 2016–2024 trends, such as declining running back valuations. Shin et al. (2023) offer a contemporary dataset but require NFL adaptation. Traditional methods (e.g., OLS, linear programming) and public datasets (e.g., salaries, AV) limit capturing non-linear dynamics. No study uses AI/ML, which could analyze 2011–2024 data to predict winning percentages, integrating player-level (e.g., performance, injuries) and team-level (e.g., coaching) factors. Underexplored areas include defensive positions (e.g., safeties, cornerbacks), performance bonuses, sunk-cost fallacies, and RBV applications to NFL front-office expertise.
 
 Future research should: (1) analyze 2011–2024 data, (2) employ AI/ML (e.g., clustering, random forests, gradient boosting) to uncover trends and simulate roster decisions, (3) investigate defensive position contributions in pass-heavy offenses, and (4) investigate portions of salary cap expenditures on the active/inactive rosters. These efforts will enhance data-driven NFL decision-making.
 
