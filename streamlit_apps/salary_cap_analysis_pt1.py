@@ -384,7 +384,7 @@ def main():
 
     supervised_learning_pt_1_model_results_df = load_supervised_learning_model_results_pt_1_df_dataset(project_data_exports_path)
 
-    lit_review, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    lit_review, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         'Literature Review',
         'Spotrac Data',
         'Team Record Data',
@@ -392,7 +392,8 @@ def main():
         'EDA - Pt 1',
         'Unsupervised Learning - Pt 1',
         'Supervised Learning - Pt 1',
-        'Predictive Modeling - Pt 1'
+        'Predictive Modeling - Pt 1',
+        'Take Aways - Pt 1, Next Steps'
     ])
 
     with lit_review:
@@ -756,8 +757,8 @@ def main():
         with st.expander("Correlation Amongst Features"):
             # st.dataframe(spotrac_nfl_team_season_roster_wide_df[['season', 'player_count_prop_active', 'cap_hit_prop_active']].corr())
 
-            corr_mat_df_pt_1 = correlation_matrix(spotrac_nfl_team_season_roster_wide_df[['season', 'player_count_prop_active', 'cap_hit_prop_active']])
-            pval_mat_df_pt_1 = p_val_matrix(spotrac_nfl_team_season_roster_wide_df[['season', 'player_count_prop_active', 'cap_hit_prop_active']])
+            corr_mat_df_pt_1 = correlation_matrix(spotrac_nfl_team_season_roster_wide_df[['season', 'player_count_prop_active', 'cap_hit_prop_active', 'pct']])
+            pval_mat_df_pt_1 = p_val_matrix(spotrac_nfl_team_season_roster_wide_df[['season', 'player_count_prop_active', 'cap_hit_prop_active', 'pct']])
 
             corr_col1, corr_col2 = st.columns(2)
             with corr_col1:
@@ -775,6 +776,10 @@ def main():
                 corr_mat_plot_pt_1 = correlation_plot(corr_mat_df_pt_1)
                 st.pyplot(corr_mat_plot_pt_1, use_container_width=True)
             st.write("""
+            - Moderate, positive linear correlation between `pct` and `cap_hit_prop_active`
+                - Team winning percentage increases as the proportion of the salary cap spent on the active roster increases
+            - No linear relationship between `pct` and `season`
+                - Corroborates violin plots on Team Record Data tab
             - Moderate, positive linear correlation between `player_count_prop_active` and `cap_hit_prop_active`
                 - As the proportion of a team's players on the active roster increases the proportion of a team's salary cap going to the active roster increases
             - Moderate, negative linear correlation between `cap_hit_prop_active` and `season`
@@ -1606,6 +1611,28 @@ def main():
                     st.plotly_chart(fig_surface, use_container_width=True)
                 else:
                     st.write(f"No surface plot available for {model_name} due to prediction errors.")
+
+    with tab8:
+        st.write("""
+        Part 1:
+        - Season over season, the NFL has a consistent average winning percentage of approximately .500
+        - Over the time studied timespan, 2011 - 2024, as the average winning percentage of the NFL remained at 0.500 the proportion of salary cap spent on the active roster decreased while the proportion spent on the inactive roster increased
+            - Keep in mind for future area of analysis outside of this current project pipeline
+        - Moderate positive linear relationship between winning percentage and `cap_hit_prop_active` (0.49)
+        - Moderate negative linear relationship between season and `player_count_prop_active` (-0.71)
+        - KMeans and GMM clustering algorithms found similar clusters (Cluster 0) that exhibited superior performance
+        - Regression models generally struggled predicting team winning percentage
+            - Tree-based models exhibited slight overfitting
+            - Non-tree-based models exhibited slight underfitting
+            - Adding additional features may help models better predict winning percentage
+        """)
+        st.write('---')
+        st.write("""
+        Part 2
+        - Incorporate team offense, defense and special team positional groupings
+            - Positions provided by spotrac.com are mapped to offense, defense, or special teams
+        - Perform same analyses as Part 1, but with positional groupings as a categorical label
+        """)
 
 
 
