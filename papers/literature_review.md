@@ -1,6 +1,8 @@
 # NFL SALARY CAP ANALYSIS LITERATURE REVIEW
 Christopher Izenour, MS Analytics
 
+Last updated: 5/23/2025
+
 # Purpose
 
 This literature review examines research relevant to optimal salary cap allocations in the National Football League (NFL). The review synthesizes studies on salary cap (scarce resource) allocation and market efficiency, with a focus on their methodologies, findings, and gaps. This project seeks to understand what the optimal NFL team salary cap allocation is based on 14 seasons’ worth of data (2011–2024).
