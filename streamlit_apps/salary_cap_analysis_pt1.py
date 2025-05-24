@@ -1612,9 +1612,14 @@ def main():
     with tab8:
         st.write("""
         Part 1:
+        - Teams' winning percentage (`pct`) increased as the proportion of the salary cap spent on the active roster increased and proportion of players on the inactive roster decreased
+            - Minimizing the incidence of players moving from active to inactive roster is key
+                - Teams should optimize training and recover strategies
+                - Players selection should include analysis of player's ability to remain available
+                - Where the proportion of players on the active roster is high and `pct` is low, the team may have players that are not as productive as players on successful teams, players not fit for the coaching system, or something else
         - Season over season, the NFL has a consistent average winning percentage of approximately .500
         - Over the time studied timespan, 2011 - 2024, as the average winning percentage of the NFL remained at 0.500 the proportion of salary cap spent on the active roster decreased while the proportion spent on the inactive roster increased
-            - Keep in mind for future area of analysis outside of this current project pipeline
+            - *Keep in mind for future area of analysis outside of this current project pipeline*
         - Moderate positive linear relationship between winning percentage and `cap_hit_prop_active` (0.49)
         - Moderate negative linear relationship between season and `player_count_prop_active` (-0.71)
         - KMeans and GMM clustering algorithms found similar clusters (Cluster 0) that exhibited superior performance
@@ -1622,6 +1627,11 @@ def main():
             - Tree-based models exhibited slight overfitting
             - Non-tree-based models exhibited slight underfitting
             - Adding additional features may help models better predict winning percentage
+        - Tree-based models consistently found the proportion of the salary cap spent on the active roster significantly contributes to model predictions of winning percentage
+            - Decision Tree: `cap_hit_prop`: 0.8276, `player_count_prop`: 0.1724
+            - Random Forest: `cap_hit_prop`: 0.8301, `player_count_prop`: 0.1699
+            - XGBoost: `cap_hit_prop`: 0.6247, `player_count_prop`: 0.3753
+        - Compared to Linear Regression's coefficients, Ridge, LASSO, and ElasticNet all shrank the coefficients, especially `player_count_prop`. This suggests that while contributory towards predicting `pct`, the proportion of players on the inactive roster has little importance compared to `cap_hit_prop`
         """)
         st.write('---')
         st.write("""
