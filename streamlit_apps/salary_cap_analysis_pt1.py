@@ -1615,7 +1615,6 @@ def main():
                 - Teams should optimize training and recover strategies
                 - Players selection should include analysis of player's ability to remain available
                 - Where the proportion of players on the active roster is high and `pct` is low, the team may have players that are not as productive as players on successful teams, players not fit for the coaching system, or something else
-        - Season over season, the NFL has a consistent average winning percentage of approximately .500
         - Moderate positive linear relationship between winning percentage and `cap_hit_prop_active` (0.49)
         - Moderate negative linear relationship between season and `player_count_prop_active` (-0.71)
         - KMeans and GMM clustering algorithms found similar clusters (Cluster 0) that exhibited superior performance
