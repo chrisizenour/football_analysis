@@ -1,0 +1,11 @@
+,feature_1,feature_2,p_value
+0,position_level_one_cap_hit_prop_active,cap_hit_per_player_prop_active,1.7013023999177913e-224
+1,position_level_one_player_count_prop_active,position_level_one_cap_hit_prop_active,2.905811910857126e-07
+2,cap_hit_per_player_prop_active,season,0.008990469716085359
+3,position_level_one_player_count_prop_active,season,0.01812609394399749
+4,position_level_one_cap_hit_prop_active,season,0.061676159702747695
+5,cap_hit_per_player_prop_active,pct,0.10591386146839006
+6,position_level_one_player_count_prop_active,cap_hit_per_player_prop_active,0.10972098436335609
+7,position_level_one_cap_hit_prop_active,pct,0.18949170140825428
+8,position_level_one_player_count_prop_active,pct,0.42626381600494956
+9,season,pct,0.9999024123970547

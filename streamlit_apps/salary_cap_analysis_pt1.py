@@ -228,7 +228,8 @@ def correlation_plot(df, title='Correlation Heatmap'):
     """create a correlation heatmap plot using seaborn"""
     mask = np.triu(np.ones_like(df, dtype=bool))
     f, ax = plt.subplots(1, 1, figsize=(11,9), facecolor='white')
-    cmap = sns.diverging_palette(230, 20, as_cmap=True)
+    # cmap = sns.diverging_palette(230, 20, as_cmap=True)
+    cmap = 'RdBu'
     sns.heatmap(df,
                 mask=mask,
                 cmap=cmap,
@@ -674,7 +675,6 @@ def main():
         st.plotly_chart(nfl_win_pct_boxplots, use_container_width=True)
 
         st.write("""
-            - The average winning % for the NFL has remained essentially unchanged, 0.500, from 2011 to 2024
             - Generally half the teams are above 0.500 and half are below 0.500
             """)
 
@@ -694,13 +694,13 @@ def main():
                 nfl_summary_stats_by_season_df = pd.concat(nfl_summary_dfs, axis=1)
                 st.write("By Season NFL Records Dataset")
                 st.dataframe(nfl_summary_stats_by_season_df)
-            st.write("""
-            - Season-to-season, there is stability in team performance as measured by `pct`
-            - Individual seasons show little variation and are emblematic of the overall dataset
-            - Given consistent nature of `pct`:
-                - What effects do changing salary cap allocations have on team performance as measured by `pct`?
-                
-            """)
+            # st.write("""
+            # - Season-to-season, there is stability in team performance as measured by `pct`
+            # - Individual seasons show little variation and are emblematic of the overall dataset
+            # - Given consistent nature of `pct`:
+            #     - What effects do changing salary cap allocations have on team performance as measured by `pct`?
+            #
+            # """)
 
         with st.expander("Future uses of this dataset"):
             st.write("""
@@ -776,7 +776,6 @@ def main():
             - Moderate, positive linear correlation between `pct` and `cap_hit_prop_active`
                 - Team winning percentage increases as the proportion of the salary cap spent on the active roster increases
             - No linear relationship between `pct` and `season`
-                - Corroborates violin plots on Team Record Data tab
             - Moderate, positive linear correlation between `player_count_prop_active` and `cap_hit_prop_active`
                 - As the proportion of a team's players on the active roster increases the proportion of a team's salary cap going to the active roster increases
             - Moderate, negative linear correlation between `cap_hit_prop_active` and `season`
@@ -939,7 +938,7 @@ def main():
                 marker=dict(
                     size=8,
                     color=overall_season_roster_status_cap_hit_prop_winning_pct_active_df['pct'],
-                    colorscale=[[0.0, 'red'], [0.5, 'white'], [1.0, 'blue']],
+                    colorscale=[[0.0, 'blue'], [0.5, 'white'], [1.0, 'red']],
                     colorbar=dict(title='Win %'),
                     opacity=0.7
                 ),
@@ -990,7 +989,7 @@ def main():
                 marker=dict(
                     size=8,
                     color=overall_season_roster_status_cap_hit_prop_winning_pct_inactive_df['pct'],
-                    colorscale=[[0.0, 'red'], [0.5, 'white'], [1.0, 'blue']],
+                    colorscale=[[0.0, 'blue'], [0.5, 'white'], [1.0, 'red']],
                     colorbar=dict(title='Win %'),
                     opacity=0.7
                 ),
@@ -1030,7 +1029,6 @@ def main():
             - 2017 - 2024:
                 - Teams (colored points), by visual inspection, appear to show greater divergence (dispersion)
                 - Better performing teams (blue) and worse performing teams (red) have less mixing
-            - Overall, the change in salary cap proportion allocations have not resulted in a change league winning percentages at the overall dataset level or on a season-to-season basis
             """)
 
     with tab5:
@@ -1618,8 +1616,6 @@ def main():
                 - Players selection should include analysis of player's ability to remain available
                 - Where the proportion of players on the active roster is high and `pct` is low, the team may have players that are not as productive as players on successful teams, players not fit for the coaching system, or something else
         - Season over season, the NFL has a consistent average winning percentage of approximately .500
-        - Over the time studied timespan, 2011 - 2024, as the average winning percentage of the NFL remained at 0.500 the proportion of salary cap spent on the active roster decreased while the proportion spent on the inactive roster increased
-            - *Keep in mind for future area of analysis outside of this current project pipeline*
         - Moderate positive linear relationship between winning percentage and `cap_hit_prop_active` (0.49)
         - Moderate negative linear relationship between season and `player_count_prop_active` (-0.71)
         - KMeans and GMM clustering algorithms found similar clusters (Cluster 0) that exhibited superior performance
