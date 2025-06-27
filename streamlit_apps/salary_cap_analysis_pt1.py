@@ -250,6 +250,21 @@ def load_supervised_learning_model_results_pt_1_df_dataset(project_data_exports_
     df = enforce_dtypes(df, dtype_map)
     return df
 
+@st.cache_date
+def load_supervised_learning_linear_model_coefficients_pt_1_df_dataset(project_data_exports_path):
+    df = pd.read_csv(
+        project_data_exports_path / 'linear_model_coefs_df.csv',
+        # sheet_name='Sheet1',
+        # header=1,
+        # engine='openpyxl',
+    )
+    # df = df.iloc[:-2]
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'])
+    dtype_map = {'season': 'int'}
+    df = enforce_dtypes(df, dtype_map)
+    return df
+
 # load trained models
 lr_model_pt_1 = joblib.load(project_pt_1_models_path / 'lr_model.pkl')
 tree_model_pt_1 = joblib.load(project_pt_1_models_path / 'tree_model.pkl')
@@ -465,6 +480,7 @@ def main():
     dbscan_grouped_clusters_team_labeled_df = load_dbscan_grouped_clusters_team_labeled_df_dataset(project_data_exports_path)
 
     supervised_learning_pt_1_model_results_df = load_supervised_learning_model_results_pt_1_df_dataset(project_data_exports_path)
+    supervised_learning_pt_1_linear_model_coefs_df = load_supervised_learning_linear_model_coefficients_pt_1_df_dataset(project_data_exports_path)
 
     lit_review, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         'Literature Review',
@@ -1497,14 +1513,14 @@ def main():
         """)
         with st.expander("Methodology"):
             st.write("""
-            - Dataset for analysis was the spotrac_nfl_team_season_roster_df
-            - Dataframe is in long format, so each team-season combination had two rows, one for each `roster_status` (active and inactive)
-                - `player_count_prop` and `cap_hit_prop` fields for active and inactive roster statuses add up to 1.0, so only the rows with the active roster status are used
-            - The resulting dataset used for supervised learning contain 448 observations and 3 columns (`pct`, 
-            `player_ount_prop`,  and `cap_hit_prop`)
+            - Dataset for analysis was the spotrac_nfl_team_season_roster_wide_df
+            - Dataframe is in wide format, so each team-season combination has feature pairs, one for each `roster_status` (active and inactive)
+                - `player_count_prop` and `cap_hit_prop` fields for active and inactive roster statuses add up to 1.0, so only the active roster status are used
+            - The resulting dataset used for supervised learning contained 448 observations and 3 columns (`pct`, 
+            `player_count_prop_active`,  and `cap_hit_prop_active`)
                 - `season` was not used as it would prevent out-of-sample predictions from being performed
             - The dataset was split into two subsets: 
-                - X: the independent variables `cap_hit_prop` and `player_count_prop`
+                - X: the independent variables `cap_hit_prop_active` and `player_count_prop_active`
                 - y: the dependent variable `pct`
             - Using scikit-learn's train_test_split, the X and y datasets were split into training and test 
             splits,  33% of the 448 observations went to the test dataset, and 67% of the observations went to the training dataset
@@ -1522,9 +1538,9 @@ def main():
             - The battery of models were trained because each model can provide different insights into the data and 
             taken together, could provide a better picture into the relationship between the independent and 
             dependent variables
-                - For example, the Decision Tree Regression model provides a decision tree, Decision Tree and Random 
-                Forest provide feature importance information, and Ridge, LASSO, ElasticNet Regression models adjust 
-                coefficients.
+                - For example, the Decision Tree Regression model provides a decision tree, Decision Tree, Random 
+                Forest, and XGBoost provide feature importance information, and Ridge, LASSO, ElasticNet Regression models shrink 
+                coefficients for those features that are less important for predicting the target variable.
             - When training the models, scikit-learn's GridSearchCV function was used to find the optimal hyperparameters
             - After generating predictions using the test set, plots were generated to ascertain the ability of the 
             models to predict the dependent variable, `pct`
@@ -1533,13 +1549,11 @@ def main():
             """)
         with st.expander('Original and Filtered Dataset used for regression model training'):
             st.write("Original Dataset: spotrac_nfl_team_season_roster_df")
-            st.dataframe(spotrac_nfl_team_season_roster_df)
+            st.dataframe(spotrac_nfl_team_season_roster_wide_df)
             st.write('---')
             st.write('Regression model training dataset: Filtered spotrac_nfl_team_season_roster_df')
-            st.dataframe(spotrac_nfl_team_season_roster_df.loc[
-                             spotrac_nfl_team_season_roster_df['roster_status'] == 'active', ['pct',
-                                                                                              'player_count_prop',
-                                                                                              'cap_hit_prop', ]])
+            st.dataframe(spotrac_nfl_team_season_roster_wide_df[['pct', 'player_count_prop_active', 'cap_hit_prop_active']])
+
         with st.expander('View Regression Model Diagnostics'):
             tab6col1, tab6col2 = st.columns(2)
             with tab6col1:
@@ -1560,9 +1574,10 @@ def main():
                     st.error(
                         f"RMSE plot not found at {rmse_plot_path}. Please ensure the file 'model_perf_rmse_plot.png' exists in the specified directory."
                     )
+            st.write('Linear Model Coefficients Table')
+            st.dataframe(supervised_learning_pt_1_linear_model_coefs_df)
 
-
-            feature_names_pt_1 = ['player_count_prop', 'cap_hit_prop']
+            feature_names_pt_1 = ['player_count_prop_active', 'cap_hit_prop_active']
             models = {
                 "Linear Regression": lr_model_pt_1,
                 "K-Nearest Neighbors": knn_model_pt_1,
@@ -1609,7 +1624,7 @@ def main():
                 st.error(
                     f"Diagnostics plot for {selected_regression_model_pt_1} not found at {regression_model_diagnostics_png_path_pt_1}. Please ensure the PNG file has been generated.")
 
-            original_feature_names_pt_1 = ['cap_hit_prop', 'player_count_prop']
+            original_feature_names_pt_1 = ['cap_hit_prop_active', 'player_count_prop_active']
 
             # Extract model information on the fly
             try:
@@ -1645,14 +1660,26 @@ def main():
                 st.error(f"Failed to extract details for {selected_regression_model_pt_1}: {str(e)}")
         with st.expander("Regression Model Takeaways"):
             st.write("""
-            - Models generally struggled predicting team winning percentage based on `cap_hit_prop` and `player_count_prop` though they were within ~2% of each other
-                - Models' Test Dataset RMSE values ranged from 0.1614 to 0.1888
-                    - i.e., Predicted winning percentage were between 16% and 19% off from actual values
-                - XGBoost, Decision Tree, and Random Forest exhibit slight overfitting
-                - Linear Regression, Ridge, LASSO, and ElasticNet exhibit slight underfitting
-            - Model performance may be improved by adjusting the hyperparameters for each model
-            - Adding additional features may assist models in identifying patterns within the data that aid in predicting winning percentage
-                
+            - The models showed **modest but meaningful ability** to predict team winning percentage (`pct`) based on `cap_hit_prop_active` and `player_count_prop_active`.
+
+                - **Test R² scores** ranged from **0.06 to 0.32**:
+                    - This means models explained **between 6% and 32% of the variance** in team performance.
+
+                - **Test RMSE values** ranged from **0.161 to 0.189**:
+                    - On average, predictions were **16% to 19% off** from actual winning percentages.
+
+            - **Model behavior patterns**:
+                - **Linear models** (Linear Regression, Ridge, LASSO, ElasticNet):
+                    - Achieved the **highest R² values (~0.316)** and lowest RMSEs (~0.161).
+                    - Indicate a **stable, interpretable linear relationship** between cap/player structure and performance.
+
+                - **Non-linear models** (KNN, Decision Tree, Random Forest, XGBoost):
+                    - Tended to **overfit** the training data without improving test performance.
+                    - XGBoost in particular underperformed, with the **lowest R² (0.06)**.
+
+            - **Opportunities for improvement**:
+                - Model performance may improve with **hyperparameter tuning**, especially for tree-based models.
+                - Adding more features (e.g., injury rates, coaching stability, offensive/defensive efficiency) could help capture additional complexity in team performance.
                 """)
     with tab7:
         st.markdown("#### Predictive Modeling")
@@ -1665,8 +1692,8 @@ def main():
                 active_player_count_prop_choice = st.number_input('Enter Active Player Count Proportion (0 - 1)',
                                                               min_value=0.0, max_value=1.0, value=0.8, step=0.01)
             input_data = pd.DataFrame({
-                'cap_hit_prop': [active_cap_hit_prop_choice],
-                'player_count_prop': [active_player_count_prop_choice]
+                'cap_hit_prop_active': [active_cap_hit_prop_choice],
+                'player_count_prop_active': [active_player_count_prop_choice]
             })
 
             models = {
@@ -1751,7 +1778,7 @@ def main():
 
         # Visualization: Surface Plots with Checkbox to Toggle cmin/cmax
         with st.expander("View Feature Impact on Winning Percentage (pct)"):
-            st.write("These 3D surface plots show how predicted winning percentage (pct) changes as `cap_hit_prop` and `player_count_prop` vary for each model. All axes range from 0 to 1, with blue at 0.0, white at 0.5, and red at 1.0.")
+            st.write("These 3D surface plots show how predicted winning percentage (pct) changes as `cap_hit_prop_active` and `player_count_prop_active` vary for each model. All axes range from 0 to 1, with blue at 0.0, white at 0.5, and red at 1.0.")
 
             # Checkbox to toggle cmin and cmax
             use_cmin_cmax = st.checkbox("Force colorbar range to [0, 1] (shows all ticks but may reduce color variation)", value=False)
@@ -1763,8 +1790,8 @@ def main():
 
             # Flatten the grids for prediction
             grid_data = pd.DataFrame({
-                'cap_hit_prop': cap_hit_grid.ravel(),
-                'player_count_prop': player_count_grid.ravel()
+                'cap_hit_prop_active': cap_hit_grid.ravel(),
+                'player_count_prop_active': player_count_grid.ravel()
             })
 
             # Define custom colorscale: blue (0.0) to white (0.5) to red (1.0)
@@ -1831,8 +1858,8 @@ def main():
                     fig_surface.update_layout(
                         title=f"{model_name}: Winning Percentage (pct) vs Cap Hit Prop and Player Count Prop",
                         scene=dict(
-                            xaxis_title='Cap Hit Proportion',
-                            yaxis_title='Player Count Proportion',
+                            xaxis_title='Cap Hit Proportion (Active)',
+                            yaxis_title='Player Count Proportion (Active)',
                             zaxis_title='Predicted Winning %',
                             xaxis=dict(range=[0, 1]),
                             yaxis=dict(range=[0, 1]),
@@ -1847,31 +1874,62 @@ def main():
 
     with tab8:
         st.write("""
-        Part 1:
-        - Teams' winning percentage (`pct`) increased as the proportion of the salary cap spent on the active roster increased and proportion of players on the inactive roster decreased
-            - Minimizing the incidence of players moving from active to inactive roster is key
-                - Teams should optimize training and recover strategies
-                - Players selection should include analysis of player's ability to remain available
-                - Where the proportion of players on the active roster is high and `pct` is low, the team may have players that are not as productive as players on successful teams, players not fit for the coaching system, or something else
-        - Moderate positive linear relationship between winning percentage and `cap_hit_prop_active` (0.49)
-        - Moderate negative linear relationship between season and `player_count_prop_active` (-0.71)
-        - KMeans and GMM clustering algorithms found similar clusters (Cluster 0) that exhibited superior performance
-        - Regression models generally struggled predicting team winning percentage
-            - Tree-based models exhibited slight overfitting
-            - Non-tree-based models exhibited slight underfitting
-            - Adding additional features may help models better predict winning percentage
-        - Tree-based models consistently found the proportion of the salary cap spent on the active roster significantly contributes to model predictions of winning percentage
-            - Decision Tree: `cap_hit_prop`: 0.8276, `player_count_prop`: 0.1724
-            - Random Forest: `cap_hit_prop`: 0.8301, `player_count_prop`: 0.1699
-            - XGBoost: `cap_hit_prop`: 0.6247, `player_count_prop`: 0.3753
-        - Compared to Linear Regression's coefficients, Ridge, LASSO, and ElasticNet all shrank the coefficients, especially `player_count_prop`. This suggests that while contributory towards predicting `pct`, the proportion of players on the inactive roster has little importance compared to `cap_hit_prop`
+        ### Part 1 Summary
+
+        - Teams' winning percentage (`pct`) **tended to increase** as:
+            - The proportion of the salary cap spent on the **active roster** increased
+            - The proportion of **players on the inactive roster** decreased
+        - Sustained player availability is key to performance:
+            - Teams should optimize training and recovery strategies to **minimize active-to-inactive transitions**
+            - Player selection should account for **durability and availability**
+            - When teams have high `player_count_prop_active` but low `pct`, this may signal:
+                - Inefficient player productivity,
+                - Poor scheme fit,
+                - Or other structural issues
+
+        - **Correlation findings**:
+            - Moderate **positive** linear correlation between `pct` and `cap_hit_prop_active`: **r = 0.49**
+            - Moderate **negative** linear correlation between `season` and `player_count_prop_active`: **r = -0.71**
+
+        - **Clustering insights**:
+            - Both **KMeans** and **GMM** identified a high-performing group (Cluster 0) characterized by:
+                - High cap investment in active players
+                - Smaller, more efficient active rosters
+
+        - **Regression model performance**:
+            - Predicting `pct` using only `cap_hit_prop_active` and `player_count_prop_active` yielded **limited success**
+                - **Best R² ~0.316** (LASSO/ElasticNet)
+                - **RMSE ~0.161–0.189**
+            - **Tree-based models** (e.g., Random Forest, XGBoost):
+                - Showed signs of **overfitting**
+            - **Linear models** (e.g., Ridge, LASSO, ElasticNet):
+                - Generalized better with **stable coefficients**
+            - Model accuracy could improve with:
+                - Additional features (e.g., player value, injuries, coaching, positional breakdown)
+                - Hyperparameter tuning
+
+        - **Feature importance in tree-based models**:
+            - Cap allocation (`cap_hit_prop_active`) consistently dominated:
+                - Decision Tree: 82.8% importance
+                - Random Forest: 83.0% importance
+                - XGBoost: 62.5% importance
+            - `player_count_prop_active` had **secondary but smaller influence**
+
+        - **Regularization insight**:
+            - Ridge, LASSO, and ElasticNet **shrunk the coefficient for `player_count_prop_active`** more than `cap_hit_prop_active`
+            - Suggests that while roster composition matters, **salary allocation** is the more powerful predictor of team success
+
         """)
+
         st.write('---')
+
         st.write("""
-        Part 2
-        - Incorporate team offense, defense and special team positional groupings
-            - Positions provided by spotrac.com are mapped to offense, defense, or special teams
-        - Perform same analyses as Part 1, but with positional groupings as a categorical label
+        ### Part 2 Preview
+
+        - Incorporate **positional groupings** (offense, defense, special teams) into the analysis
+            - Player positions are mapped using Spotrac’s position taxonomy
+        - Repeat clustering, correlation, and regression analyses from Part 1 with **positional unit groupings** included
+            - This will allow exploration of how spending and player count proportions in specific units (e.g., defense vs. offense) relate to team performance
         """)
 
 

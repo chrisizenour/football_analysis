@@ -1,0 +1,8 @@
+,Feature,Coefficient
+0,Intercept,0.5016366666666667
+1,num__position_level_one_cap_hit_prop_active_defense,-0.0
+2,num__position_level_one_cap_hit_prop_active_offense,0.011239047383161529
+3,num__position_level_one_cap_hit_prop_active_special_team,-0.025125003101432657
+4,num__position_level_one_player_count_prop_active_defense,0.0
+5,num__position_level_one_player_count_prop_active_offense,-0.016497732814174895
+6,num__position_level_one_player_count_prop_active_special_team,0.010766908293790988
