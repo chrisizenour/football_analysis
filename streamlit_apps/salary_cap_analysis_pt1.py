@@ -250,7 +250,7 @@ def load_supervised_learning_model_results_pt_1_df_dataset(project_data_exports_
     df = enforce_dtypes(df, dtype_map)
     return df
 
-@st.cache_date
+@st.cache_data
 def load_supervised_learning_linear_model_coefficients_pt_1_df_dataset(project_data_exports_path):
     df = pd.read_csv(
         project_data_exports_path / 'linear_model_coefs_df.csv',
