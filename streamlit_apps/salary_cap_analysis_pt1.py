@@ -131,7 +131,7 @@ def load_kmc_grouped_clusters_labeled_df_dataset(project_data_exports_path):
 @st.cache_data
 def load_kmc_grouped_clusters_team_labeled_df_dataset(project_data_exports_path):
     df = pd.read_csv(
-        project_data_exports_path / 'kmc_grouped_clusters_team_df.csv',
+        project_data_exports_path / 'kmc_grouped_clusters_team_labeled_df.csv',
         # sheet_name='Sheet1',
         # header=1,
         # engine='openpyxl',
@@ -469,12 +469,15 @@ def main():
     spotrac_nfl_records_df = load_spotrac_nfl_records_dataset(project_data_exports_path)
     spotrac_nfl_team_season_roster_df = load_spotrac_nfl_team_season_roster_df_dataset(project_data_exports_path)
     spotrac_nfl_team_season_roster_wide_df = load_spotrac_nfl_team_season_roster_wide_df_dataset(project_data_exports_path)
+
     kmc_labeled_df = load_kmc_labeled_df_dataset(project_data_exports_path)
     kmc_grouped_clusters_labeled_df = load_kmc_grouped_clusters_labeled_df_dataset(project_data_exports_path)
     kmc_grouped_clusters_team_labeled_df = load_kmc_grouped_clusters_team_labeled_df_dataset(project_data_exports_path)
+
     gmm_labeled_df = load_gmm_labeled_df_dataset(project_data_exports_path)
     gmm_grouped_clusters_labeled_df = load_gmm_grouped_clusters_labeled_df_dataset(project_data_exports_path)
     gmm_grouped_clusters_team_labeled_df = load_gmm_grouped_clusters_team_labeled_df_dataset(project_data_exports_path)
+
     dbscan_labeled_df = load_dbscan_labeled_df_dataset(project_data_exports_path)
     dbscan_grouped_clusters_labeled_df = load_dbscan_grouped_clusters_labeled_df_dataset(project_data_exports_path)
     dbscan_grouped_clusters_team_labeled_df = load_dbscan_grouped_clusters_team_labeled_df_dataset(project_data_exports_path)
