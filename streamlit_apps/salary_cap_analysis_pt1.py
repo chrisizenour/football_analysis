@@ -1242,7 +1242,7 @@ def main():
 
                 st.plotly_chart(kmc_labeled_df_scatterplot, use_container_width=True)
 
-
+            st.write('---')
             st.write('Cluster means for spotrac_nfl_team_season_roster_wide_df')
             st.dataframe(kmc_grouped_clusters_labeled_df)
             st.write("---")
