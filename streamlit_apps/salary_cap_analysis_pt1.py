@@ -1374,7 +1374,7 @@ def main():
 
         with st.expander("DBSCAN Clustering"):
             st.write("""
-            - Sorted 5th Nearest Neighbor Distances plot and Silhouette Score Plot indicate that the optimal Epsilon and Minimum Samples values are 0.4 and 8, respectively
+            - Sorted 5th Nearest Neighbor Distances plot and Silhouette Score Plot
             """)
             dbscan_distance_plot_col, dbscan_silhouette_score_plot_col, dbscan_pc12_plot_col = st.columns(3)
             with dbscan_distance_plot_col:
