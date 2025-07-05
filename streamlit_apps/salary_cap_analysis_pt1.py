@@ -7,6 +7,15 @@ import pandas as pd
 import numpy as np
 import scipy.stats as stats
 from sklearn.tree import export_text
+from sklearn.preprocessing import (
+    StandardScaler,
+    OneHotEncoder,
+    MinMaxScaler,
+    RobustScaler,
+    OrdinalEncoder
+)
+from sklearn.linear_model import Ridge, Lasso, ElasticNet
+from sklearn.neighbors import KNeighborsRegressor
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly_express as px
@@ -265,6 +274,15 @@ def load_supervised_learning_linear_model_coefficients_pt_1_df_dataset(project_d
     df = enforce_dtypes(df, dtype_map)
     return df
 
+@st.cache_data
+def load_X_train_dataset(project_data_exports_path):
+    df = pd.read_csv(
+        project_data_exports_path / 'X_train_df.csv',
+    )
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'])
+    return df
+
 # load trained models
 lr_model_pt_1 = joblib.load(project_pt_1_models_path / 'lr_model.pkl')
 tree_model_pt_1 = joblib.load(project_pt_1_models_path / 'tree_model.pkl')
@@ -451,6 +469,86 @@ def extract_model_info(model, model_name, original_feature_names):
 
     return info
 
+
+def summarize_model_preprocessors(models_dict):
+    """
+    Inspect each model in the dictionary and summarize whether it includes a preprocessor,
+    and if so, what transformations are applied to which features.
+
+    Adds a flag for models that *should* have preprocessing (e.g., Ridge, Lasso, KNN) but don't.
+
+    Returns:
+    - pd.DataFrame with columns:
+        - Model
+        - Has Preprocessor
+        - Preprocessor Type
+        - Scaled Features
+        - Encoded Features
+        - Needs Preprocessor (Based on model type)
+        - Warning (if expected but missing)
+    """
+    import pandas as pd
+
+    summary = []
+
+    for name, model in models_dict.items():
+        pipeline = None
+        if hasattr(model, 'best_estimator_'):
+            pipeline = model.best_estimator_
+        elif isinstance(model, Pipeline):
+            pipeline = model
+
+        regressor = None
+        if pipeline and hasattr(pipeline, 'named_steps') and 'regressor' in pipeline.named_steps:
+            regressor = pipeline.named_steps['regressor']
+        elif hasattr(model, 'predict') and not hasattr(model, 'named_steps'):
+            regressor = model  # Not a pipeline, but standalone model
+
+        # Determine if model type typically requires preprocessing
+        needs_preprocessing = isinstance(regressor, (Ridge, Lasso, ElasticNet, KNeighborsRegressor))
+
+        has_preprocessor = False
+        preprocessor_type = "None"
+        scaled_features = []
+        encoded_features = []
+
+        if pipeline and hasattr(pipeline, 'named_steps') and 'preprocessor' in pipeline.named_steps:
+            preprocessor = pipeline.named_steps['preprocessor']
+            preprocessor_type = type(preprocessor).__name__
+
+            if hasattr(preprocessor, 'transformers'):
+                for transformer_name, transformer_obj, columns in preprocessor.transformers:
+                    if transformer_name == 'remainder':
+                        continue  # skip passthrough or drop
+                    if hasattr(transformer_obj, 'get_params'):
+                        if 'scaler' in transformer_name or isinstance(transformer_obj, StandardScaler):
+                            scaled_features.extend(columns)
+                        elif 'encoder' in transformer_name or isinstance(transformer_obj, OneHotEncoder):
+                            encoded_features.extend(columns)
+                        else:
+                            if 'scale' in str(transformer_obj).lower():
+                                scaled_features.extend(columns)
+                            if 'onehot' in str(transformer_obj).lower():
+                                encoded_features.extend(columns)
+            has_preprocessor = bool(scaled_features or encoded_features)
+
+        warning = ""
+        if needs_preprocessing and not has_preprocessor:
+            warning = "⚠️ Needs preprocessing but none found"
+
+        summary.append({
+            "Model": name,
+            "Has Preprocessor": has_preprocessor,
+            "Preprocessor Type": preprocessor_type,
+            "Scaled Features": ', '.join(scaled_features) if scaled_features else "-",
+            "Encoded Features": ', '.join(encoded_features) if encoded_features else "-",
+            "Needs Preprocessor": needs_preprocessing,
+            "Warning": warning
+        })
+
+    return pd.DataFrame(summary)
+
+
 def main():
     # st.set_page_config('NFL Salary Cap Analysis, 2011 - 2024', layout="wide", page_icon=":football:")
     st.markdown('# NFL Salary Cap Analysis, 2011 - 2024')
@@ -464,6 +562,8 @@ def main():
     st.markdown("## Is Team Performance Influenced by Annual Salary Cap Distributions?")
 
     # --- load datasets ---
+    X_train = load_X_train_dataset(project_data_exports_path)
+
     spotrac_salary_cap_data_df = load_spotrac_dataset(project_data_exports_path)
     nfl_season_records_df = load_nfl_season_records_dataset(project_data_exports_path)
     spotrac_nfl_records_df = load_spotrac_nfl_records_dataset(project_data_exports_path)
@@ -619,7 +719,7 @@ def main():
 
         # Update layout
         spotrac_cap_hit_pct_plot.update_layout(
-            title="Sum of cap_hit_pct_league_cap Salary Cap by Team per Season",
+            title=f"Sum of `cap_hit_pct_league_cap` Salary Cap by Team per Season",
             xaxis_title="NFL Season",
             yaxis_title="Team Salary Cap %",
             height=600,
@@ -687,7 +787,7 @@ def main():
 
         # Layout updates
         spotrac_roster_status_cap_hit_pct_plot.update_layout(
-            title="Sum of cap_hit_pct_league_cap by Team and Roster Status per Season",
+            title=f"Sum of `cap_hit_pct_league_cap` by Team and Roster Status per Season",
             xaxis_title="NFL Season",
             yaxis_title="Team Salary Cap %",
             height=650,
@@ -774,10 +874,6 @@ def main():
         ))
         st.plotly_chart(nfl_win_pct_boxplots, use_container_width=True)
 
-        st.write("""
-            - Generally half the teams are above 0.500 and half are below 0.500
-            """)
-
         with st.expander("View Season Win % Means Dataframe"):
             tab2col1, tab2col2 = st.columns([0.2, 0.8])
             with tab2col1:
@@ -816,6 +912,8 @@ def main():
                 - `div_win_pct`: This represents the winning % of the team in the division.
                 - `conf_win_pct`: This represents the winning % of the team in the conference.
             - This analysis's initial line of effort will focus on the team's overall season winning percentage (`pct`).
+            - Future iterations of analysis may focus on other team performance metrics.
+            - Though `pct` is target variable of this analysis, other team performance metrics will be analyzed as features that provide additional information and context
             
             """)
 
@@ -835,27 +933,130 @@ def main():
             st.write('---')
             st.write("Wide version of `spotrac_nfl_team_season_roster_df`")
             st.dataframe(spotrac_nfl_team_season_roster_wide_df)
+            st.write(f'Number of Observations: {spotrac_nfl_team_season_roster_wide_df.shape[0]}')
             st.write("""
-            - Notes on dataframe:
-                - `roster_status`: 
-                    - Engineered field that represents the portion of the roster that the player is on.
-                    - Derived from the table that the player appeared in, table 0 = active, table 1+ = inactive
-                - `player_count`:
-                    - Engineered field that represents the number of players on the roster that were either active or inactive players.
-                - `cap_hit_sum`:
-                    - Engineered field that represents the sum of the `cap_hit` values for the players on the roster that were either active or inactive players.
-                - `player_count_prop`:
-                    - Engineered field that represents the proportion of players on the roster that were either active or inactive players.
-                - `cap_hit_prop`:
-                    - Engineered field that represents the proportion of the `cap_hit_sum` is of that team-season-roster_status combination.
-                    - 'active' + 'inactive' = 100% of that team-season-roster_status combination's `cap_hit_sum`.
+            #### Dataframe Metric Descriptions
+            - `roster_status`:
+                - Indicates roster portion - **active** or **inactive**.
+                - Derived from original table source: table 0 = active, table 1+ = inactive.
+            
+            ##### Core Metrics (Per Team, Season, and Roster Status)
+            - `player_count_active`; `player_count_inactive`:
+                - Total number of players in each roster status group.
+            
+            - `cap_hit_sum_active`; `cap_hit_sum_inactive`:
+                - Total salary cap hit assigned to active and inactive players.
+            
+            - `player_count_prop_active`; `player_count_prop_inactive`:
+                - Proportion of team’s players who are active or inactive.
+                - E.g., 0.85 means 85% of players were active that season.
+            
+            - `cap_hit_prop_active`; `cap_hit_prop_inactive`:
+                - Proportion of salary cap dollars spent on each roster group.
+                - E.g., 0.92 means 92% of salary cap went to active players.
+            
+            - `cap_hit_per_player_prop_active`; `cap_hit_per_player_prop_inactive`:
+                - This is a **relative metric** that compares the average cap hit per player **within a roster group** (active/inactive)
+                to the **overall average cap hit per player for the entire team** in that season.
+                - **Formula**:  
+                  `cap_hit_per_player_prop = (cap_hit_sum / player_count) / (total_cap_hit_sum / total_player_count)`
+                - **How to interpret**:
+                    - `> 1.0` → Players in this group (active/inactive) have a **higher average cap hit per player** than the team average.
+                    - `< 1.0` → Players in this group have a **lower average cap hit per player** than the team average.
+                    - This helps identify if a team’s money is concentrated among a smaller set of players or more evenly distributed.
+            
+            ##### Derived Metrics: Comparing Active vs Inactive Rosters
+
+            The following metrics summarize how **disparate or balanced** the two roster groups are.
+            
+            - `delta_*` metrics (e.g., `delta_cap_hit_prop`):
+                - **Definition**: Difference between the active and inactive values for a given metric.
+                - **Formula**: `active - inactive`
+                - **Interpretation**:
+                    - Positive values: active group has a higher value.
+                    - Negative values: inactive group has a higher value.
+                    - **Use case**: Highlights where resources or player representation are concentrated.
+            
+            - `ratio_*` metrics (e.g., `ratio_player_count_prop`):
+                - **Definition**: Ratio of active value to inactive value.
+                - **Formula**: `active / (inactive + epsilon)`
+                - **Interpretation**:
+                    - `> 1.0`: active value is greater than inactive.
+                    - `< 1.0`: inactive value is greater.
+                    - `≈ 1.0`: values are roughly equal.
+                    - **Use case**: Easy-to-read multiplicative relationship.
+                    - Example:
+                        - `0.80 active / 0.20 inactive = 4.0` → 4x more active players.
+                        - `0.25 active / 0.75 inactive = 0.33` → Active group is one-third the size of inactive.
+            
+            - `total_*` metrics (e.g., `total_cap_hit_prop`):
+                - **Definition**: Sum of the active and inactive values.
+                - **Formula**: `active + inactive`
+                - **Interpretation**:
+                    - These values should typically ≈ 1.0 for proportion metrics (e.g., `cap_hit_prop`), acting as a quick data integrity check.
+                    - Deviations from 1.0 could indicate rounding or missing data.
+            
+            - `log_ratio_*` metrics (e.g., `log_ratio_cap_hit_per_player_prop`):
+                - **Definition**: Natural logarithm of the active-to-inactive ratio.
+                - **Formula**: `ln(active / inactive)`
+                - **Interpretation of log_ratio values**:
+                    - `> 0`: active value is greater than inactive.
+                    - `< 0`: inactive value is greater.
+                    - `= 0`: values are equal.
+                    - **Use case**: Especially useful in statistical modeling, as log-transformed ratios handle skew and create symmetry for relative comparisons.
+                    - A value of `ln(2) ≈ 0.693` means the active metric is **twice** as large as the inactive one.
+            
+            ##### Team Performance Metrics (Merged from `nfl_season_records_df`)
+            - `w`; `l`:
+                - Number of wins and losses in the season.
+            
+            - `pct`:
+                - Win percentage.
+            
+            - `pf`; `pa`:
+                - Points For and Points Against.
+            
+            - `net_pts`:
+                - Point differential: `pf - pa`.
+            
+            - `div_win_pct`:
+                - Division win percentage.
+            
+            - `conf_win_pct`:
+                - Conference win percentage.
             """)
 
         with st.expander("Correlation Amongst Features"):
             # st.dataframe(spotrac_nfl_team_season_roster_wide_df[['season', 'player_count_prop_active', 'cap_hit_prop_active']].corr())
 
-            corr_mat_df_pt_1 = correlation_matrix(spotrac_nfl_team_season_roster_wide_df[['season', 'player_count_prop_active', 'cap_hit_prop_active', 'pct']])
-            pval_mat_df_pt_1 = p_val_matrix(spotrac_nfl_team_season_roster_wide_df[['season', 'player_count_prop_active', 'cap_hit_prop_active', 'pct']])
+            corr_mat_df_pt_1 = correlation_matrix(spotrac_nfl_team_season_roster_wide_df[['season',
+                                                                                          'player_count_prop_active',
+                                                                                          'cap_hit_prop_active',
+                                                                                          'cap_hit_per_player_prop_active',
+                                                                                          'delta_player_count_prop',
+                                                                                          'ratio_player_count_prop',
+                                                                                          'log_ratio_player_count_prop',
+                                                                                          'delta_cap_hit_prop',
+                                                                                          'ratio_cap_hit_prop',
+                                                                                          'log_ratio_cap_hit_prop',
+                                                                                          'delta_cap_hit_per_player_prop',
+                                                                                          'ratio_cap_hit_per_player_prop',
+                                                                                          'log_ratio_cap_hit_per_player_prop',
+                                                                                          'pct']])
+            pval_mat_df_pt_1 = p_val_matrix(spotrac_nfl_team_season_roster_wide_df[['season',
+                                                                                          'player_count_prop_active',
+                                                                                          'cap_hit_prop_active',
+                                                                                          'cap_hit_per_player_prop_active',
+                                                                                          'delta_player_count_prop',
+                                                                                          'ratio_player_count_prop',
+                                                                                          'log_ratio_player_count_prop',
+                                                                                          'delta_cap_hit_prop',
+                                                                                          'ratio_cap_hit_prop',
+                                                                                          'log_ratio_cap_hit_prop',
+                                                                                          'delta_cap_hit_per_player_prop',
+                                                                                          'ratio_cap_hit_per_player_prop',
+                                                                                          'log_ratio_cap_hit_per_player_prop',
+                                                                                          'pct']])
 
             corr_col1, corr_col2 = st.columns(2)
             with corr_col1:
@@ -872,17 +1073,113 @@ def main():
             with corr_col2:
                 corr_mat_plot_pt_1 = correlation_plot(corr_mat_df_pt_1)
                 st.pyplot(corr_mat_plot_pt_1, use_container_width=True)
-            st.write("""
-            - Moderate, positive linear correlation between `pct` and `cap_hit_prop_active`
-                - Team winning percentage increases as the proportion of the salary cap spent on the active roster increases
-            - No linear relationship between `pct` and `season`
-            - Moderate, positive linear correlation between `player_count_prop_active` and `cap_hit_prop_active`
-                - As the proportion of a team's players on the active roster increases the proportion of a team's salary cap going to the active roster increases
-            - Moderate, negative linear correlation between `cap_hit_prop_active` and `season`
-                - The proportion of a team's salary cap going to the active roster decreases over time (as the seasons increase from 2011 to 2024) 
-            - Moderate-to-almost strong negative linear correlation between `player_count_prop_active` and `season`
-                - The proportion of a team's players on the active roster decreases over time (as the seasons increase from 2011 to 2024)
+            st.markdown("""
+            ## 🔍 Feature Correlation Insights
+
+            This section summarizes key insights from the correlation analysis of NFL team-season features, focusing on player count and salary cap distribution.
+
+            ---
+
+            ### 1. Redundant Features
+            - Many features like `delta_*`, `log_ratio_*`, and `ratio_*` are **highly correlated (ρ > 0.99)** with their base counterparts.
+            - ✅ **Action:** Keep only one version of each feature (e.g., raw, delta, or log-ratio) to reduce redundancy and avoid multicollinearity.
+
+            ---
+
+            ### 2. What Drives Team Success?
+            **Features most correlated with winning percentage (`pct`):**
+            - `log_ratio_cap_hit_per_player_prop`: **ρ = 0.51**
+            - `cap_hit_prop_active`: **ρ = 0.49**
+            - `delta_cap_hit_prop`: **ρ = 0.49**
+            - `ratio_cap_hit_per_player_prop`: **ρ = 0.47**
+
+            **Interpretation:** Teams that spend a higher share of their cap on **fewer high-value active players** tend to win more.
+
+            ---
+
+            ### 3. League Strategy Trends Over Time
+            - Several features show **strong negative correlation with `season`**, such as:
+              - `player_count_prop_active`: **ρ = -0.71**
+              - `cap_hit_prop_active`: **ρ = -0.40**
+
+            **Interpretation:** Teams are **consolidating spending on fewer active players** over time, possibly favoring star power or roster efficiency.
+
+            ---
+
+            ### 4. Features With Little to No Predictive Value
+            - Some features have low correlation and are **not statistically significant**, such as:
+              - `pct` vs. `season`: **ρ ≈ 0**
+              - `ratio_player_count_prop` vs. `pct`: **ρ ≈ 0.03**
+
+            **Action:** These can be excluded from your predictive models or explored further with non-linear techniques.
+
+            ---
+
+            ### Recommendations for Modeling
+            - **Prioritize** features like `cap_hit_prop_active`, `cap_hit_per_player_prop_active`, and their transformations.
+            - **Remove** highly collinear feature variants.
+            - **Control for `season`** to account for strategic evolution across years.
+            - **Consider interactions** between cap allocation and roster structure.
+
+            ---
             """)
+
+        correlation_plot_features = ['season',
+                                     'player_count_prop_active',
+                                     'cap_hit_prop_active',
+                                     'cap_hit_per_player_prop_active',
+                                     'delta_player_count_prop',
+                                     'ratio_player_count_prop',
+                                     'log_ratio_player_count_prop',
+                                     'delta_cap_hit_prop',
+                                     'ratio_cap_hit_prop',
+                                     'log_ratio_cap_hit_prop',
+                                     'delta_cap_hit_per_player_prop',
+                                     'ratio_cap_hit_per_player_prop',
+                                     'log_ratio_cap_hit_per_player_prop',
+                                     'pct']
+        correlation_plot_categorical_features = ['team']
+        correlation_plot_color_cols = correlation_plot_features + correlation_plot_categorical_features
+        corr_plot_col1, corr_plot_col2, corr_plot_col3 = st.columns(3)
+        with corr_plot_col1:
+            corr_plot_x_col = st.selectbox('Select X-Axis Column', options=correlation_plot_features,
+                                           index=correlation_plot_features.index('delta_player_count_prop'), key='correlation_plot_x_axis')
+        with corr_plot_col2:
+            corr_plot_y_col = st.selectbox('Select Y-Axis Column', options=correlation_plot_features,
+                                           index=correlation_plot_features.index('player_count_prop_active'), key='correlation_plot_y_axis')
+        with corr_plot_col3:
+            corr_plot_color_col = st.selectbox('Select Color', options=correlation_plot_color_cols,
+                                         index=correlation_plot_color_cols.index('pct'), key='corr_plot_color')
+        if not spotrac_nfl_team_season_roster_wide_df.empty:
+            is_discrete = corr_plot_color_col in correlation_plot_categorical_features or (corr_plot_color_col == 'season') or \
+                          kmc_labeled_df[corr_plot_color_col].nunique() < 10
+            corr_plot_color_param = dict(
+                color=corr_plot_color_col,
+                color_discrete_sequence=px.colors.qualitative.Plotly if is_discrete else None,
+                color_continuous_scale=None if is_discrete else 'Viridis'
+            )
+
+        correlation_scatterplot = px.scatter(
+            spotrac_nfl_team_season_roster_wide_df,
+            x=corr_plot_x_col,
+            y=corr_plot_y_col,
+            **corr_plot_color_param,
+            hover_data=['team', 'season'],
+            opacity=0.7,
+            size_max=10
+        )
+        # Update layout
+        correlation_scatterplot.update_layout(
+            title=f"Scatter Plot: {corr_plot_x_col} vs {corr_plot_y_col} (Colored by {corr_plot_color_col})",
+            xaxis_title=corr_plot_x_col.replace('_', ' ').title(),
+            yaxis_title=corr_plot_y_col.replace('_', ' ').title(),
+            legend_title=corr_plot_color_col.replace('_', ' ').title(),
+            template='plotly_white',
+            height=600,
+            showlegend=True
+        )
+
+        st.plotly_chart(correlation_scatterplot, use_container_width=True)
 
         with st.expander("Cap Hit Salary Proportion Plots"):
             # Plotly boxplot
@@ -1141,7 +1438,13 @@ def main():
             - Dataset for analysis was the spotrac_nfl_team_season_roster_wide_df
             - Dataframe is in wide format, so each team-season combination is an observation and each column describes the team-season combination
                 - `player_count_prop` and `cap_hit_prop` fields for active and inactive roster statuses add up to 1.0, so only the active roster status columns are used
-            - The resulting dataset used for unsupervised learning contains 448 observations and 2 columns (`player_count_prop`, and `cap_hit_prop`)
+            - The resulting dataset used for unsupervised learning contains 448 observations and 6 columns
+                - `player_count_prop_active`
+                - `cap_hit_prop_active`
+                - `cap_hit_per_player_prop_active`
+                - `ratio_cap_hit_per_player_prop`
+                - `ratio_cap_hit_prop`
+                - `ratio_player_count_prop`
             - Three different unsupervised learning models were used:
                 - KMeans clustering
                 - Gaussian Mixture Model
@@ -1155,11 +1458,16 @@ def main():
             st.dataframe(spotrac_nfl_team_season_roster_wide_df)
             st.write("---")
             st.write("Clustering Dataset: Filtered spotrac_nfl_team_season_roster_df")
-            st.dataframe(spotrac_nfl_team_season_roster_wide_df.loc[:, ['player_count_prop_active', 'cap_hit_prop_active']])
+            st.dataframe(spotrac_nfl_team_season_roster_wide_df.loc[:, ['cap_hit_prop_active',
+                                                                        'cap_hit_per_player_prop_active',
+                                                                          'player_count_prop_active',
+                                                                          'ratio_cap_hit_per_player_prop',
+                                                                          'ratio_cap_hit_prop',
+                                                                          'ratio_player_count_prop']])
 
         with st.expander("KMeans Clustering"):
             st.write("""
-            - Elbow Plot and Average Cluster Silhouette Score plot indicate 4 clusters as optimal cluster quantity
+            - Elbow Plot and Average Cluster Silhouette Score plot along with PC1 and PC2 cluster plot
             """)
             elbow_plot_col, silhouette_score_plot_col, kmc_pc12_plot_col = st.columns(3)
             with elbow_plot_col:
@@ -1249,22 +1557,78 @@ def main():
             st.write('Cluster team-season values for spotrac_nfl_team_season_roster_wide_df')
             st.dataframe(kmc_grouped_clusters_team_labeled_df)
             st.write("""
-            Observations concerning the KMC cluster means dataframe:
-            - Cluster 0:
-                - Superior performance relative to other clusters as measured by pct and other performance metrics
-                - On average, 79% of annual salary cap expenditures on the active roster
-                - On average, 42% of players that register a cap hit are on the active roster
-                - On average, 57% overall winning percentage
-            - Cluster 2:
-                - Better `cap_hit_prop` and `player_count_prop` values for the active roster than of Cluster 0
-                    - On average, 88% of salary cap expenditures go toward the active roster (79% for Cluster 0)
-                    - On average, 72% of players that register a cap hit are on the active roster (42% for Cluster 0)
-                - Overall winning percentage is roughly equal to Average League winning percentage over the entire dataset (50%)
-            - Potential explanations for difference between Cluster 0 and Cluster 2:
-                - Teams in Cluster 0 have a small, highly-capable core of players indicated by small proportion of players on active roster
-                - On average, Cluster 0 scored ~38 more points per season than did Cluster 2; hinting at better offensive abilities
-                - On average, Cluster 2 did a better job keeping salary cap affecting players on the active roster (72% vs 42%)
-                    - Teams invested in players that were able to remain active, but the continuity did not result in on-field offensive performance (only a ~+5 net point differntial)
+            ## Observations on KMeans Cluster Groupings
+
+            These insights are drawn from the average values of each KMeans cluster across key salary cap, roster, and performance metrics.
+
+            ---
+
+            ### Cluster 0 (n = 151)
+            - **Top-performing cluster** across the board:
+              - **Win percentage:** 61.4%
+              - **Net points:** +55
+              - **Avg. points scored:** 407
+            - **Cap strategy:** 
+              - ~82% of salary cap allocated to **active roster**
+              - Only **~40% of players** with a cap hit are on the active roster
+              - **Highest cap hit per active player** (~2.08x)
+            - **Representative team-seasons:**
+              - **2015 Carolina Panthers** – 15-1, +192 net points
+              - **2024 Kansas City Chiefs** – 15-2, +59 net points
+              - **2020 Kansas City Chiefs** – 14-2, +111 net points
+            - Interpretation: Small, high-cap-value core players = efficient and successful
+
+            ---
+
+            ### Cluster 1 (n = 20)
+            - **Roster-heavy active strategy**:
+              - ~80% of players with a cap hit are active (highest among clusters)
+              - **Win %:** 49.7% — **league average**
+            - **Cap efficiency:** Highest `cap_hit_prop_active` (~95%) but **lowest cap hit per player**
+            - **Representative team-seasons:**
+              - **2011 Green Bay Packers** – 15-1, +201 net points
+              - **2011 New Orleans Saints** – 13-3, +208 net points
+              - **2011 San Francisco 49ers** – 13-3, +151 net points
+            - Interpretation: Teams invested in continuity and participation, but **results were average**
+
+            ---
+
+            ### Cluster 2 (n = 47)
+            - Similar to Cluster 1 but with:
+              - Fewer active players (~63%)
+              - Slightly lower `cap_hit_prop_active` (~80%)
+            - **Win %:** 50.4% — marginally above average
+            - **Offense:** ~368 points scored (moderate)
+            - **Representative team-seasons:**
+              - **2012 Atlanta Falcons** – 13-3, +120 net points
+              - **2012 Denver Broncos** – 13-3, +192 net points
+              - **2013 Denver Broncos** – 13-3, +207 net points
+            - Interpretation: Balanced approach, but didn’t generate big performance gains
+
+            ---
+
+            ### Cluster 3 (n = 230)
+            - **Lowest-performing group**:
+              - **Win %:** 42.5%
+              - **Net points:** -36
+            - **Cap strategy:** 
+              - Only ~64% of cap used on active players
+              - Active roster holds ~38% of cap-hit players
+              - **Representative team-seasons:**
+                - **2024 Detroit Lions** – 15-2, +222 net points
+                - **2019 Baltimore Ravens** – 14-2, +249 net points
+                - **2024 Minnesota Vikings** – 14-3, +100 net points
+            - Interpretation: High cost on inactive players may have hindered effectiveness
+            - **Note:** Despite generally lower average performance, Cluster 3 contains **high-performing outliers** — likely driven by strong quarterback play or isolated high-value seasons that overcame inefficient roster structures.
+
+            ---
+
+            ### Summary:
+            - **Cluster 0 = Elite Efficiency**: Small active core, high investment, top-tier results.
+            - **Cluster 1 = Full Participation**: Most players active, cap fully used, average outcomes.
+            - **Cluster 2 = Balanced Strategy**: Slightly better results than Cluster 1, but fewer players active.
+            - **Cluster 3 = Inefficiency**: High inactive cap cost, low performance metrics.
+
             """)
         
         with st.expander("Gaussian Mixture Model (GMM) Clustering"):
@@ -1354,22 +1718,96 @@ def main():
             st.write('Cluster team-season values for spotrac_nfl_team_season_roster_df')
             st.dataframe(gmm_grouped_clusters_team_labeled_df)
             st.write("""
-            Observations concerning the GMM cluster means dataframe:
-            - Cluster 0:
-                - Superior performance relative to other clusters as measured by pct and other performance metrics
-                    - On average, 79% of annual salary cap expenditures on the active roster
-                    - On average, 40% of players that register a cap hit are on the active roster
-                    - On average, 57% overall winning percentage
-            - Cluster 2:
-                - Second best performance relative to other clusters as measured by pct and other metrics
-                    - On average, 93% of annual salary cap expenditures on the active roster
-                    - On average, 78% of players that register a cap hit are on the active roster
-                - Overall winning percentage is roughly equal to Average League winning percentage over the entire dataset (50%)
-            - Potential explanations for difference between Cluster 0 and Cluster 2:
-                - On average, Cluster 0 scored ~39 more points per season than did Cluster 2; hinting at better scoring abilities
-                - On average, Cluster 0 and Cluster 2 allowed the same number points per season (355 vs 355)
-                - On average, Cluster 2 did a better job keeping salary cap affecting players on the active roster (78% vs 40%)
-                - Cluster 0's teams had greater offensive capability than did Cluster 2
+            ## Observations on GMM Cluster Groupings
+
+            This analysis summarizes key differences in salary cap structure, roster strategy, and performance across GMM-identified clusters.
+
+            ---
+
+            ### Cluster 4 (n = 48)
+            - **Top performance cluster:**
+              - **Win %:** 66.5%
+              - **Net points:** +78
+              - **Points scored:** 422 (highest)
+            - **Cap strategy:**
+              - 88% of cap spent on active roster
+              - 43% of cap-hit players on active roster
+              - **Highest cap hit per active player**
+            - **Representative team-seasons:**
+              - **2024 Kansas City Chiefs** – 15-2, +59 net points
+              - **2020 Kansas City Chiefs** – 14-2, +111 net points
+              - **2022 Kansas City Chiefs** – 14-3, +127 net points
+            - Interpretation: Small, high-value active core with elite results
+            - *Note: Although this cluster had elite results, its relatively small size (n = 48) may reflect a specialized strategy rather than a league-wide trend.*
+
+            ---
+
+            ### Cluster 0 (n = 206)
+            - **Strong performer:**
+              - **Win %:** 54.6%
+              - **Net points:** +24
+            - **Cap efficiency:**
+              - 75% of cap on active players
+              - 39% of cap-hit players active
+            - **Representative team-seasons:**
+              - **2015 Carolina Panthers** – 15-1, +192 net points
+              - **2024 Detroit Lions** – 15-2, +222 net points
+              - **2019 Baltimore Ravens** – 14-2, +249 net points
+            - Interpretation: Lean rosters with strategic investment in top-tier players
+
+            ---
+
+            ### Cluster 2 (n = 54)
+            - **Mid-tier performance:**
+              - **Win %:** 48.7%
+              - **Net points:** -7
+            - **Roster strategy:**
+              - 78% of cap spent on active roster
+              - 62% of cap-hit players are active
+            - **Representative team-seasons:**
+              - **2012 Atlanta Falcons** – 13-3, +120 net points
+              - **2012 Denver Broncos** – 13-3, +192 net points
+              - **2013 Denver Broncos** – 13-3, +207 net points
+            - Interpretation: High continuity but middling performance
+
+            ---
+
+            ### Cluster 1 (n = 18)
+            - **Similar to Cluster 2** but with:
+              - Even **higher active player share (81%)**
+              - **Highest cap % on active players** (95%)
+              - **Performance:** Win % = 49.0%, Net pts = -8.9
+            - **Representative team-seasons:**
+              - **2011 Green Bay Packers** – 15-1, +201 net points
+              - **2011 New Orleans Saints** – 13-3, +208 net points
+              - **2011 San Francisco 49ers** – 13-3, +151 net points
+            - Interpretation: Full-roster utilization doesn’t guarantee success
+            - *Note: This cluster includes only 18 team-seasons, so results should be interpreted with caution.*
+
+            ---
+
+            ### Cluster 3 (n = 122)
+            - **Lowest performance:**
+              - **Win %:** 36.5%
+              - **Net points:** -66
+              - **Points allowed:** 402 (highest)
+            - **Cap structure:**
+              - Only 58% of cap on active players
+              - 35% of players on the active roster
+            - **Representative team-seasons:**
+              - **2024 Minnesota Vikings** – 14-3, +100 net points
+              - **2022 Philadelphia Eagles** – 14-3, +133 net points
+              - **2014 Dallas Cowboys** – 12-4, +115 net points
+            - Interpretation: High inactive cap burden → poor results
+
+            ---
+
+            ### Summary:
+            - **Cluster 4:** Elite performance from tight, expensive cores
+            - **Cluster 0:** Efficient, lean rosters = consistent winning
+            - **Clusters 1 & 2:** Broad participation but only average outcomes
+            - **Cluster 3:** Inefficiency leads to underperformance
+
             """)
 
         with st.expander("DBSCAN Clustering"):
@@ -1463,49 +1901,119 @@ def main():
             st.write('Cluster team-season values for spotrac_nfl_team_season_roster_wide_df')
             st.dataframe(dbscan_grouped_clusters_team_labeled_df)
             st.write("""
-                        Observations concerning the DBSCAN cluster means dataframe:
-                        - Clusters 0 and 1 exhibit essentially identical overall season winning percentage (50%)
-                            - Cluster 0:
-                                - On average, 93% of annual salary cap expenditures on the active roster
-                                - On average, 77% of players that register a cap hit are on the active roster
-                                - On average, exhibit an annual net point differential of ~ -1.1 points
-                                    - PF: 353 points, PA: 354 points
-                            - Cluster 1:
-                                - On average, 72% of annual salary cap expenditures on the active roster
-                                - On average, 40% of players that register a cap hit are on the active roster
-                                - On average, exhibit an annual net point differential of ~ +1.2 points
-                                    - PF: 372 points, PA: 371 points
-                            - Cluster -1 (Noise Cluster)
-                                - On average, 71% of annual salary cap expenditures on the active roster
-                                - On average, 59% of players that register a cap hit are on the active roster
-                                - On average, exhibit an annual net point differential of ~ -17 points
-                                    - PF: 364 points, PA: 381 points
-                        """)
+            ## Observations on DBSCAN Cluster Groupings
+
+            This analysis summarizes cap structure, roster allocation, and performance outcomes for the two clusters discovered by DBSCAN.
+
+            ---
+
+            ### Cluster -1 (Noise Cluster, n = 12)
+            - **Roster & Cap:**
+              - 73% of cap-hit players are active
+              - **95% of cap** is spent on the active roster (highest of both clusters)
+            - **Performance:**
+              - **Win %:** 60.7% (strongest performance)
+              - **Net points:** +37
+              - **Points scored:** ~400, allowed: ~362
+            - **Representative team-seasons:**
+              - **2011 Green Bay Packers**: 15-1, +201 net points
+              - **2011 New England Patriots**: 13-3, +171 net points
+              - **2020 Buffalo Bills**: 13-3, +126 net points
+            - **Interpretation:** Despite being identified as "noise," these teams had **lean, highly efficient rosters** and strong results. Possibly elite or outlier teams with unique roster strategies.
+            - *Note: This cluster was flagged as noise by DBSCAN, meaning these team-seasons did not conform to any broader grouping. They may represent **elite outliers** rather than repeatable strategies.*
+            ---
+
+            ### Cluster 0 (n = 436)
+            - **Roster & Cap:**
+              - 42% of cap-hit players are active
+              - ~73% of the cap is spent on them
+            - **Performance:**
+              - **Win %:** 49.7% (league average)
+              - **Net points:** -1
+              - **Points scored:** ~370, allowed: ~371
+            - **Representative team-seasons:**
+              - **2015 Carolina Panthers**: 15-1, +192 net points
+              - **2024 Detroit Lions**: 15-2, +222 net points
+              - **2024 Kansas City Chiefs**: 15-2, +59 net points
+            - **Interpretation:** Large, rotational rosters with **average investment efficiency and performance**. Reflects typical league behavior.
+
+            ---
+
+            ### Summary
+            - **Cluster -1** (Noise): These teams stand out for exceptional **efficiency and scoring**. Possibly elite rosters with minimal waste.
+            - **Cluster 0**: Most teams fall here — **middle-of-the-road** outcomes and standard cap/roster distributions.
+
+            """)
 
         with st. expander("Clustering Takeaways"):
             st.write("""
-            ### Generalized Clustering Takeaways
+            ## Generalized Clustering Takeaways
 
-            - **Cap Efficiency Matters More Than Roster Size**
-                - High `cap_hit_prop_active` combined with **low to moderate `player_count_prop_active`** consistently yields **superior results**.
-                - These teams win more while spending more per active player — consistent with elite, top-heavy roster construction.
-            
-            - **Deep Rosters Aren’t Always Better**
-                - Clusters with very high `player_count_prop_active` (~0.77–0.79) and high active cap spend often **deliver only average performance**.
-                - Having more active players does not guarantee superior outcomes — quantity of contributors ≠ quality of output.
-            
-            - **Struggling Teams Show Moderate Cap Investment and Dispersed Rosters**
-                - Underperforming clusters (e.g., KMC Cluster 2, GMM Cluster 1, DBSCAN Cluster -1) consistently:
-                    - Allocate **less cap to active players**
-                    - Have **higher inactive player counts**
-                    - Exhibit weaker scoring performance (lower net points)
-            
-            - **Consistency Across Models**
-                - KMC Cluster 0 and GMM Cluster 0 emerge as consistently high-performing groups with efficient, impactful roster configurations.
-                - DBSCAN Cluster 0 resembles GMM Cluster 2 structurally, while DBSCAN’s noise cluster (-1) captures disorganized or underperforming roster strategies.
-            
-            **Bottom Line**:
-            > Elite teams appear to succeed by building a **smaller, highly-paid active core**, rather than broadly distributing salary across more players. Clustering reveals that strategic cap concentration correlates with better win percentages and net points.
+            This summary synthesizes trends across KMeans, GMM, and DBSCAN clustering results, offering high-level strategic insights about roster construction and salary cap efficiency.
+
+            ---
+
+            ### Cap Efficiency > Roster Size
+            - Across all models, clusters with **high `cap_hit_prop_active` (80–95%)** and **lower `player_count_prop_active` (35–45%)** consistently:
+              - Win more games
+              - Score more points
+              - Post higher net point differentials
+            - These teams tend to concentrate cap space in a **smaller core of impactful players**.
+            - **Examples:**
+              - KMeans Cluster 0: *2015 Cardinals*, *2021 Cardinals*, *2017 Falcons*
+              - GMM Cluster 4: *2013 Broncos*, *2015 Cardinals*, *2016 Cowboys*
+              - DBSCAN Cluster -1: *2011 Packers*, *2020 Bills*, *2011 Patriots*
+
+            ---
+
+            ### Deep Rosters Don’t Guarantee Success
+            - Clusters with **very high `player_count_prop_active` (~0.75–0.80)** and full cap utilization showed:
+              - **Average win percentages (~49–50%)**
+              - Low-to-moderate net point gains or deficits
+            - Participation ≠ performance. These teams spread cap across more players but didn’t dominate.
+            - Examples:
+              - KMeans Cluster 1: *TBD team-seasons*
+              - GMM Cluster 1: *2019 Buccaneers*, *2018 Vikings*
+              - GMM Cluster 2: *2020 Washington*, *2015 Jets*
+
+            ---
+
+            ### Inefficiency = Poor Outcomes
+            - Clusters with **low `cap_hit_prop_active` (≤65%)** and **high inactive burden** underperformed:
+              - Win % drops below 45%
+              - Net points typically negative
+            - These teams paid many inactive players—**a drag on performance**.
+            - Examples:
+              - KMeans Cluster 3: *2019 Dolphins*, *2021 Giants*
+              - GMM Cluster 3: *2014 Raiders*, *2015 Browns*
+
+            ---
+
+            ### Model-Consistent Patterns
+            - **Elite clusters** (e.g., KMeans 0, GMM 4, DBSCAN -1) **share characteristics**:
+              - Small active cores
+              - High cap investment efficiency
+              - Strong point differentials
+            - **Average-performing clusters** (e.g., KMeans 1/2, GMM 1/2, DBSCAN 0) tend toward:
+              - Larger active groups
+              - Full cap deployment
+              - Moderate scoring and win %
+
+            ---
+
+            ### Caveats & Special Cases
+            - **GMM Cluster 1** (n = 18) and **Cluster 4** (n = 48) are relatively small.
+              - Results may reflect **unique or non-representative strategies**.
+            - **DBSCAN Cluster -1** (n = 12) was **labeled noise**, meaning teams were outliers:
+              - Despite strong performance, this cluster isn’t a trend—it may capture **elite exceptions**.
+            - **Interpret with care** when generalizing from small, high-performing groups.
+
+            ---
+
+            ### Bottom Line:
+            > Elite teams consistently concentrate cap space in a **smaller number of high-value active players**.  
+            > Larger rosters with full participation **do not necessarily produce better outcomes**, while inefficient rosters with heavy inactive costs tend to underperform.
+
             """)
 
     with tab6:
@@ -1556,6 +2064,23 @@ def main():
             st.write('---')
             st.write('Regression model training dataset: Filtered spotrac_nfl_team_season_roster_df')
             st.dataframe(spotrac_nfl_team_season_roster_wide_df[['pct', 'player_count_prop_active', 'cap_hit_prop_active']])
+
+        with st.expander('Model Preprocessing Summary'):
+            st.markdown("#### Model Preprocessing Summary")
+
+            models = {
+                "Linear Regression": lr_model_pt_1,
+                "Decision Tree": tree_model_pt_1,
+                "K-Nearest Neighbors": knn_model_pt_1,
+                "Random Forest": rf_model_pt_1,
+                "Ridge Regression": ridge_model_pt_1,
+                "Lasso Regression": lasso_model_pt_1,
+                "ElasticNet": elasticnet_model_pt_1,
+                "XGBoost": xgbr_model_pt_1
+            }
+
+            model_summary_df = summarize_model_preprocessors(models)
+            st.dataframe(model_summary_df, use_container_width=True)
 
         with st.expander('View Regression Model Diagnostics'):
             tab6col1, tab6col2 = st.columns(2)
@@ -1627,7 +2152,14 @@ def main():
                 st.error(
                     f"Diagnostics plot for {selected_regression_model_pt_1} not found at {regression_model_diagnostics_png_path_pt_1}. Please ensure the PNG file has been generated.")
 
-            original_feature_names_pt_1 = ['cap_hit_prop_active', 'player_count_prop_active']
+            original_feature_names_pt_1 = [
+                'cap_hit_prop_active',
+                'cap_hit_per_player_prop_active',
+                'player_count_prop_active',
+                'ratio_cap_hit_per_player_prop',
+                'ratio_cap_hit_prop',
+                'ratio_player_count_prop'
+            ]
 
             # Extract model information on the fly
             try:
@@ -1663,52 +2195,119 @@ def main():
                 st.error(f"Failed to extract details for {selected_regression_model_pt_1}: {str(e)}")
         with st.expander("Regression Model Takeaways"):
             st.write("""
-            - The models showed **modest but meaningful ability** to predict team winning percentage (`pct`) based on `cap_hit_prop_active` and `player_count_prop_active`.
+            - The models demonstrated a **moderate ability** to predict team winning percentage (`pct`) using six features derived from salary cap structure.
 
-                - **Test R² scores** ranged from **0.06 to 0.32**:
-                    - This means models explained **between 6% and 32% of the variance** in team performance.
+                - **Test R² scores** ranged from **0.21 to 0.32**:
+                    - Models explained **21% to 32% of the variance** in team performance.
 
-                - **Test RMSE values** ranged from **0.161 to 0.189**:
-                    - On average, predictions were **16% to 19% off** from actual winning percentages.
+                - **Test RMSE values** ranged between **0.161 and 0.173**:
+                    - Predictions deviated from actual team winning percentages by **16% to 17% on average**.
 
-            - **Model behavior patterns**:
-                - **Linear models** (Linear Regression, Ridge, LASSO, ElasticNet):
-                    - Achieved the **highest R² values (~0.316)** and lowest RMSEs (~0.161).
-                    - Indicate a **stable, interpretable linear relationship** between cap/player structure and performance.
+            - **Best Performing Models**:
+                - **ElasticNet**, **LASSO**, and **Random Forest** achieved the strongest performance:
+                    - ElasticNet: RMSE = 0.162, R² = 0.313
+                    - LASSO: RMSE = 0.161, R² = 0.317
+                    - Random Forest: RMSE = 0.162, R² = 0.312
 
-                - **Non-linear models** (KNN, Decision Tree, Random Forest, XGBoost):
-                    - Tended to **overfit** the training data without improving test performance.
-                    - XGBoost in particular underperformed, with the **lowest R² (0.06)**.
+            - **Overfitting and Underfitting Behavior**:
+                - **Overfitting** occurs when models perform well on training data but poorly on test data:
+                    - **XGBoost** showed signs of overfitting:
+                        - Although its cross-validation RMSE was decent (0.166), its **test RMSE worsened to 0.173** and **R² dropped to 0.213**, suggesting limited generalization.
+                    - **Decision Tree** had almost identical RMSE on train and test sets but with lower R² (0.305), suggesting possible model simplicity or overfitting to structure in small data.
 
-            - **Opportunities for improvement**:
-                - Model performance may improve with **hyperparameter tuning**, especially for tree-based models.
-                - Adding more features (e.g., injury rates, coaching stability, offensive/defensive efficiency) could help capture additional complexity in team performance.
-                """)
+                - **Underfitting** happens when models cannot capture patterns even in training data:
+                    - None of the models showed strong signs of underfitting, but **Linear Regression** had the **highest test RMSE (0.1628)** among the linear models and moderate R² (0.304), indicating some missed complexity.
+                    - **KNN Regression** had the **lowest original dataset RMSE (0.094)** but a higher test RMSE (0.164) and a lower R² (0.293), hinting at sensitivity to local structure and poor extrapolation.
+
+                - **Good Generalization**:
+                    - **Regularized linear models** (LASSO, Ridge, ElasticNet) and **Random Forest** balanced training and test performance well.
+                    - Their **low cross-validation std dev (~0.021)** suggests stability and **good generalization**.
+
+            - **Model Behavior Insights**:
+                - **Linear models**:
+                    - Offer interpretability and consistency.
+                    - Regularization helps in reducing noise and controlling variance.
+
+                - **Non-linear models**:
+                    - **Random Forest** generalized well with strong test R².
+                    - **KNN** is effective on training data but more sensitive to distributional noise.
+                    - **XGBoost**, despite its complexity, may be overfitting and could benefit from more tuning or pruning.
+
+            - **Opportunities for Improvement**:
+                - Add features related to **injuries, coaching stability, player experience**, or **offensive/defensive ratings**.
+                - Perform **more targeted feature selection**, especially for ratio-based variables which may be collinear.
+                - For complex models, apply **regularization, pruning, or advanced tuning** to reduce overfitting risk.
+            """)
     with tab7:
         st.markdown("#### Predictive Modeling")
-        with st.expander("Model Predictions"):
-            tab7col1, tab7col2 = st.columns(2)
-            with tab7col1:
-                active_cap_hit_prop_choice = st.number_input('Enter Active Cap Hit Proportion (0 - 1)', min_value=0.0,
-                                                   max_value=1.0, value=0.8, step=0.01)
-            with tab7col2:
-                active_player_count_prop_choice = st.number_input('Enter Active Player Count Proportion (0 - 1)',
-                                                              min_value=0.0, max_value=1.0, value=0.8, step=0.01)
-            input_data = pd.DataFrame({
-                'cap_hit_prop_active': [active_cap_hit_prop_choice],
-                'player_count_prop_active': [active_player_count_prop_choice]
-            })
-
-            models = {
-                "Linear Regression": lr_model_pt_1,
-                "Decision Tree": tree_model_pt_1,
-                "K-Nearest Neighbors": knn_model_pt_1,
-                "Random Forest": rf_model_pt_1,
-                "Ridge Regression": ridge_model_pt_1,
-                "Lasso Regression": lasso_model_pt_1,
-                "ElasticNet": elasticnet_model_pt_1,
-                "XGBoost": xgbr_model_pt_1
+        with st.expander("Prediction Input (All 6 Features)"):
+            # Compute dynamic bounds from X_train
+            feature_bounds = {
+                col: {
+                    'min': float(X_train[col].min()),
+                    'max': float(X_train[col].max()),
+                    'default': float(X_train[col].median())
+                } for col in X_train.columns
             }
+
+            tab7col1, tab7col2, tab7col3 = st.columns(3)
+
+            with tab7col1:
+                f1 = st.number_input(
+                    f"Active Cap Hit Proportion (range: {feature_bounds['cap_hit_prop_active']['min']:.2f} – {feature_bounds['cap_hit_prop_active']['max']:.2f})",
+                    min_value=feature_bounds['cap_hit_prop_active']['min'],
+                    max_value=feature_bounds['cap_hit_prop_active']['max'],
+                    value=feature_bounds['cap_hit_prop_active']['default'],
+                    step=0.01
+                )
+                f4 = st.number_input(
+                    f"Ratio Cap Hit Per Player Prop (range: {feature_bounds['ratio_cap_hit_per_player_prop']['min']:.2f} – {feature_bounds['ratio_cap_hit_per_player_prop']['max']:.2f})",
+                    min_value=feature_bounds['ratio_cap_hit_per_player_prop']['min'],
+                    max_value=feature_bounds['ratio_cap_hit_per_player_prop']['max'],
+                    value=feature_bounds['ratio_cap_hit_per_player_prop']['default'],
+                    step=0.01
+                )
+
+            with tab7col2:
+                f2 = st.number_input(
+                    f"Active Player Count Proportion (range: {feature_bounds['player_count_prop_active']['min']:.2f} – {feature_bounds['player_count_prop_active']['max']:.2f})",
+                    min_value=feature_bounds['player_count_prop_active']['min'],
+                    max_value=feature_bounds['player_count_prop_active']['max'],
+                    value=feature_bounds['player_count_prop_active']['default'],
+                    step=0.01
+                )
+                f5 = st.number_input(
+                    f"Ratio Cap Hit Prop (range: {feature_bounds['ratio_cap_hit_prop']['min']:.2f} – {feature_bounds['ratio_cap_hit_prop']['max']:.2f})",
+                    min_value=feature_bounds['ratio_cap_hit_prop']['min'],
+                    max_value=feature_bounds['ratio_cap_hit_prop']['max'],
+                    value=feature_bounds['ratio_cap_hit_prop']['default'],
+                    step=0.01
+                )
+
+            with tab7col3:
+                f3 = st.number_input(
+                    f"Cap Hit Per Player Prop Active (range: {feature_bounds['cap_hit_per_player_prop_active']['min']:.2f} – {feature_bounds['cap_hit_per_player_prop_active']['max']:.2f})",
+                    min_value=feature_bounds['cap_hit_per_player_prop_active']['min'],
+                    max_value=feature_bounds['cap_hit_per_player_prop_active']['max'],
+                    value=feature_bounds['cap_hit_per_player_prop_active']['default'],
+                    step=0.01
+                )
+                f6 = st.number_input(
+                    f"Ratio Player Count Prop (range: {feature_bounds['ratio_player_count_prop']['min']:.2f} – {feature_bounds['ratio_player_count_prop']['max']:.2f})",
+                    min_value=feature_bounds['ratio_player_count_prop']['min'],
+                    max_value=feature_bounds['ratio_player_count_prop']['max'],
+                    value=feature_bounds['ratio_player_count_prop']['default'],
+                    step=0.01
+                )
+
+            input_data = pd.DataFrame({
+                'cap_hit_prop_active': [f1],
+                'player_count_prop_active': [f2],
+                'cap_hit_per_player_prop_active': [f3],
+                'ratio_cap_hit_per_player_prop': [f4],
+                'ratio_cap_hit_prop': [f5],
+                'ratio_player_count_prop': [f6]
+            })
 
             predictions = {}
 
@@ -1781,91 +2380,94 @@ def main():
 
         # Visualization: Surface Plots with Checkbox to Toggle cmin/cmax
         with st.expander("View Feature Impact on Winning Percentage (pct)"):
-            st.write("These 3D surface plots show how predicted winning percentage (pct) changes as `cap_hit_prop_active` and `player_count_prop_active` vary for each model. All axes range from 0 to 1, with blue at 0.0, white at 0.5, and red at 1.0.")
+            st.write("These 3D surface plots show how predicted winning percentage (pct) changes as two selected features vary for each model. All axes use the actual data range from the training set.")
+            # Select X and Y features
+            feature_options = list(X_train.columns)
+            x_feature = st.selectbox("Select X-axis Feature", feature_options, index=0)
+            y_feature = st.selectbox("Select Y-axis Feature", [f for f in feature_options if f != x_feature], index=0)
+            fixed_features = [f for f in feature_options if f not in [x_feature, y_feature]]
 
-            # Checkbox to toggle cmin and cmax
-            use_cmin_cmax = st.checkbox("Force colorbar range to [0, 1] (shows all ticks but may reduce color variation)", value=False)
+            feature_bounds = {
+                col: {
+                    'min': float(X_train[col].min()),
+                    'max': float(X_train[col].max()),
+                    'default': float(X_train[col].median())
+                } for col in feature_options
+            }
 
-            # Create a grid of values for cap_hit_prop and player_count_prop, ensuring range 0 to 1
-            cap_hit_range = np.linspace(0, 1, 100)
-            player_count_range = np.linspace(0, 1, 100)
-            cap_hit_grid, player_count_grid = np.meshgrid(cap_hit_range, player_count_range)
+            fixed_values = {}
+            for feat in fixed_features:
+                bounds = feature_bounds[feat]
+                fixed_values[feat] = st.slider(
+                    f"Set value for {feat}",
+                    min_value=bounds['min'],
+                    max_value=bounds['max'],
+                    value=bounds['default'],
+                    step=0.01
+                )
 
-            # Flatten the grids for prediction
-            grid_data = pd.DataFrame({
-                'cap_hit_prop_active': cap_hit_grid.ravel(),
-                'player_count_prop_active': player_count_grid.ravel()
-            })
+            use_cmin_cmax = st.checkbox(
+                "Force colorbar range to [0, 1] (shows all ticks but may reduce color variation)", value=False)
 
-            # Define custom colorscale: blue (0.0) to white (0.5) to red (1.0)
+            x_range = np.linspace(feature_bounds[x_feature]['min'], feature_bounds[x_feature]['max'], 100)
+            y_range = np.linspace(feature_bounds[y_feature]['min'], feature_bounds[y_feature]['max'], 100)
+            x_grid, y_grid = np.meshgrid(x_range, y_range)
+
+            grid_data = pd.DataFrame({feat: fixed_values.get(feat, 0.5) for feat in feature_options},
+                                     index=range(x_grid.size))
+            grid_data[x_feature] = x_grid.ravel()
+            grid_data[y_feature] = y_grid.ravel()
+
             custom_colorscale = [[0.0, 'blue'], [0.5, 'white'], [1.0, 'red']]
 
-            # Predict for each model across the grid
             surface_predictions = {}
             for model_name, model in models.items():
                 try:
-                    preds = model.predict(grid_data)
-                    # Clip predictions to [0, 1] to match the requested range
+                    # Check if model is a GridSearchCV or pipeline object with preprocessing
+                    if hasattr(model, 'predict'):
+                        preds = model.predict(grid_data)
+                    else:
+                        raise ValueError("Model does not have a predict method")
                     preds = np.clip(preds, 0, 1)
-                    # Reshape predictions back to grid shape
-                    surface_predictions[model_name] = preds.reshape(cap_hit_grid.shape)
+                    surface_predictions[model_name] = preds.reshape(x_grid.shape)
                 except Exception as e:
                     st.warning(f"Could not generate surface plot for {model_name}: {str(e)}")
                     surface_predictions[model_name] = None
 
-            # Create a surface plot for each model with additional ticks and toggled cmin/cmax
             for model_name, surface_data in surface_predictions.items():
                 if surface_data is not None:
-                    # Configure surface plot based on checkbox
+                    surface_kwargs = dict(
+                        colorscale=custom_colorscale,
+                        showscale=True,
+                        colorbar=dict(
+                            title='Predicted Winning %',
+                            tickvals=[i / 10 for i in range(11)],
+                            ticktext=[f"{i / 10:.1f}" for i in range(11)],
+                            len=0.7,
+                            y=0.5,
+                            ticks='outside',
+                            tickfont=dict(size=12)
+                        )
+                    )
                     if use_cmin_cmax:
-                        # Force colorbar range to [0, 1]
-                        surface_kwargs = dict(
-                            cmin=0.0,
-                            cmax=1.0,
-                            colorscale=custom_colorscale,
-                            showscale=True,
-                            colorbar=dict(
-                                title='Predicted Winning %',
-                                tickvals=[i / 10 for i in range(11)],  # Ticks at 0.0, 0.1, 0.2, ..., 1.0
-                                ticktext=[f"{i/10:.1f}" for i in range(11)],  # Labels as 0.0, 0.1, ..., 1.0
-                                len=0.7,
-                                y=0.5,
-                                ticks='outside',
-                                tickfont=dict(size=12)
-                            )
-                        )
-                    else:
-                        # Let Plotly auto-scale the colorscale
-                        surface_kwargs = dict(
-                            colorscale=custom_colorscale,
-                            showscale=True,
-                            colorbar=dict(
-                                title='Predicted Winning %',
-                                tickvals=[i / 10 for i in range(11)],  # Ticks at 0.0, 0.1, 0.2, ..., 1.0
-                                ticktext=[f"{i/10:.1f}" for i in range(11)],  # Labels as 0.0, 0.1, ..., 1.0
-                                len=0.7,
-                                y=0.5,
-                                ticks='outside',
-                                tickfont=dict(size=12)
-                            )
-                        )
+                        surface_kwargs.update(cmin=0.0, cmax=1.0)
 
                     fig_surface = go.Figure(data=[
                         go.Surface(
-                            x=cap_hit_grid,
-                            y=player_count_grid,
+                            x=x_grid,
+                            y=y_grid,
                             z=surface_data,
                             **surface_kwargs
                         )
                     ])
                     fig_surface.update_layout(
-                        title=f"{model_name}: Winning Percentage (pct) vs Cap Hit Prop and Player Count Prop",
+                        title=f"{model_name}: Winning % vs {x_feature} and {y_feature}",
                         scene=dict(
-                            xaxis_title='Cap Hit Proportion (Active)',
-                            yaxis_title='Player Count Proportion (Active)',
+                            xaxis_title=x_feature,
+                            yaxis_title=y_feature,
                             zaxis_title='Predicted Winning %',
-                            xaxis=dict(range=[0, 1]),
-                            yaxis=dict(range=[0, 1]),
+                            xaxis=dict(range=[x_range.min(), x_range.max()]),
+                            yaxis=dict(range=[y_range.min(), y_range.max()]),
                             zaxis=dict(range=[0, 1])
                         ),
                         height=600,
@@ -1877,63 +2479,75 @@ def main():
 
     with tab8:
         st.write("""
-        ### Part 1 Summary
+            ### Part 1 Summary
 
-        - Teams' winning percentage (`pct`) **tended to increase** as:
-            - The proportion of the salary cap spent on the **active roster** increased
-            - The proportion of **players on the inactive roster** decreased
-        - Sustained player availability is key to performance:
-            - Teams should optimize training and recovery strategies to **minimize active-to-inactive transitions**
-            - Player selection should account for **durability and availability**
-            - When teams have high `player_count_prop_active` but low `pct`, this may signal:
-                - Inefficient player productivity,
-                - Poor scheme fit,
-                - Or other structural issues
+            - **Winning percentage (`pct`) increases** when teams:
+                - Spend a **greater share of their cap on active players** (`cap_hit_prop_active`)
+                - Have **smaller, more concentrated active rosters** (`player_count_prop_active`)
 
-        - **Correlation findings**:
-            - Moderate **positive** linear correlation between `pct` and `cap_hit_prop_active`: **r = 0.49**
-            - Moderate **negative** linear correlation between `season` and `player_count_prop_active`: **r = -0.71**
+            - **Roster efficiency is key to success**:
+                - Teams that invest heavily in a **high-value core** tend to win more.
+                - **Correlation and clustering analyses** show that elite teams have:
+                    - High `cap_hit_prop_active` (80–95%)
+                    - Low `player_count_prop_active` (35–45%)
+                - Strategy: Focus cap space on **durable, high-performing players** to limit active-inactive transitions.
 
-        - **Clustering insights**:
-            - Both **KMeans** and **GMM** identified a high-performing group (Cluster 0) characterized by:
-                - High cap investment in active players
-                - Smaller, more efficient active rosters
+            - **Statistical correlation findings**:
+                - `pct` vs. `cap_hit_prop_active`: **ρ = 0.49**
+                - `pct` vs. `log_ratio_cap_hit_per_player_prop`: **ρ = 0.51**
+                - `season` vs. `player_count_prop_active`: **ρ = -0.71**
+                    - Indicates a **league-wide shift toward leaner active rosters** over time.
 
-        - **Regression model performance**:
-            - Predicting `pct` using only `cap_hit_prop_active` and `player_count_prop_active` yielded **limited success**
-                - **Best R² ~0.316** (LASSO/ElasticNet)
-                - **RMSE ~0.161–0.189**
-            - **Tree-based models** (e.g., Random Forest, XGBoost):
-                - Showed signs of **overfitting**
-            - **Linear models** (e.g., Ridge, LASSO, ElasticNet):
-                - Generalized better with **stable coefficients**
-            - Model accuracy could improve with:
-                - Additional features (e.g., player value, injuries, coaching, positional breakdown)
-                - Hyperparameter tuning
+            - **Clustering insights (KMeans, GMM, DBSCAN)**:
+                - **Top-performing clusters** (e.g., KMeans 0, GMM 4, DBSCAN -1):
+                    - Small active rosters
+                    - High cap investment efficiency
+                    - High win % and net points
+                - **Underperforming clusters**:
+                    - High inactive burden
+                    - Low `cap_hit_prop_active` and poor net points
+                - **Balanced/full participation strategies** often led to **average performance**
 
-        - **Feature importance in tree-based models**:
-            - Cap allocation (`cap_hit_prop_active`) consistently dominated:
-                - Decision Tree: 82.8% importance
-                - Random Forest: 83.0% importance
-                - XGBoost: 62.5% importance
-            - `player_count_prop_active` had **secondary but smaller influence**
+            - **Regression model results**:
+                - Supervised learning models used six features derived from cap/roster structure:
+                    - `cap_hit_prop_active`, `cap_hit_per_player_prop_active`, `player_count_prop_active`
+                    - `ratio_cap_hit_per_player_prop`, `ratio_cap_hit_prop`, `ratio_player_count_prop`
+                - **Test R² values ranged from 0.21 to 0.32**:
+                    - Models explained **21% to 32% of variance** in team success.
+                - **Test RMSE ranged from 0.161 to 0.173**:
+                    - Prediction errors averaged **16–17%** from actual win rates.
 
-        - **Regularization insight**:
-            - Ridge, LASSO, and ElasticNet **shrunk the coefficient for `player_count_prop_active`** more than `cap_hit_prop_active`
-            - Suggests that while roster composition matters, **salary allocation** is the more powerful predictor of team success
+            - **Feature importance insights from tree-based models**:
+                - All three models emphasized **`ratio_cap_hit_per_player_prop`** as the **most predictive feature**:
+                    - **Decision Tree**: 82.8% of total importance
+                    - **Random Forest**: 57.4%
+                    - **XGBoost**: 57.4%
+                - **`cap_hit_prop_active`** and **`ratio_cap_hit_prop`** also ranked highly across models.
+                - **`player_count_prop_active`** had very low or **zero importance** in all three tree-based models, suggesting it contributes little once other features are considered.
 
-        """)
+                **Interpretation**:
+                > Tree-based models confirm that **cap efficiency per player** is the most powerful predictor,  
+                > while raw roster size metrics (like `player_count_prop_active`) may hold minimal predictive value when used alongside more nuanced features.
+
+            - **Takeaway**: Cap strategy is a **stronger predictor of team success** than roster size alone. Concentrated spending on high-performing active players consistently drives winning outcomes.
+
+            """)
 
         st.write('---')
 
         st.write("""
-        ### Part 2 Preview
+            ### Part 2 Preview
 
-        - Incorporate **positional groupings** (offense, defense, special teams) into the analysis
-            - Player positions are mapped using Spotrac’s position taxonomy
-        - Repeat clustering, correlation, and regression analyses from Part 1 with **positional unit groupings** included
-            - This will allow exploration of how spending and player count proportions in specific units (e.g., defense vs. offense) relate to team performance
-        """)
+            - Extend the analysis by introducing **positional groupings** (offense, defense, special teams)
+                - Map player positions using Spotrac’s taxonomy to categorize roster structure by unit
+            - Re-run clustering, correlation, and regression using these unit-level proportions
+                - Explore questions like:
+                    - Does cap allocation to the **defensive unit** predict success better than offense?
+                    - Are **special teams investments** correlated with higher win percentages?
+            - Anticipated value:
+                - Highlight which **unit-level investments** matter most
+                - Discover new high-performing roster strategies that go beyond team-wide aggregates
+            """)
 
 
 

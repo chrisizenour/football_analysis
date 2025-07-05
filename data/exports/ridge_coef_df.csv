@@ -1,4 +1,8 @@
 ,Feature,Coefficient
-0,Intercept,0.5016366666666667
-1,num__cap_hit_prop_active,0.1172421477495816
-2,num__player_count_prop_active,-0.0546070779166629
+0,Intercept,0.20715607107010686
+1,num__cap_hit_prop_active,0.3030185647865893
+2,num__cap_hit_per_player_prop_active,0.16206123128619312
+3,num__player_count_prop_active,0.020625450997750937
+4,num__ratio_cap_hit_per_player_prop,0.13969507203066056
+5,num__ratio_cap_hit_prop,0.013886713949975184
+6,num__ratio_player_count_prop,-0.06648237212310068
