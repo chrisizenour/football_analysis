@@ -16,6 +16,7 @@ from sklearn.preprocessing import (
 )
 from sklearn.linear_model import Ridge, Lasso, ElasticNet
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.pipeline import Pipeline
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly_express as px
@@ -487,8 +488,6 @@ def summarize_model_preprocessors(models_dict):
         - Needs Preprocessor (Based on model type)
         - Warning (if expected but missing)
     """
-    import pandas as pd
-
     summary = []
 
     for name, model in models_dict.items():
@@ -504,7 +503,6 @@ def summarize_model_preprocessors(models_dict):
         elif hasattr(model, 'predict') and not hasattr(model, 'named_steps'):
             regressor = model  # Not a pipeline, but standalone model
 
-        # Determine if model type typically requires preprocessing
         needs_preprocessing = isinstance(regressor, (Ridge, Lasso, ElasticNet, KNeighborsRegressor))
 
         has_preprocessor = False
@@ -518,18 +516,21 @@ def summarize_model_preprocessors(models_dict):
 
             if hasattr(preprocessor, 'transformers'):
                 for transformer_name, transformer_obj, columns in preprocessor.transformers:
-                    if transformer_name == 'remainder':
-                        continue  # skip passthrough or drop
-                    if hasattr(transformer_obj, 'get_params'):
-                        if 'scaler' in transformer_name or isinstance(transformer_obj, StandardScaler):
-                            scaled_features.extend(columns)
-                        elif 'encoder' in transformer_name or isinstance(transformer_obj, OneHotEncoder):
-                            encoded_features.extend(columns)
-                        else:
-                            if 'scale' in str(transformer_obj).lower():
+                    if transformer_obj == 'drop':
+                        continue
+                    # Handle nested pipelines (e.g., for numeric and categorical transformations)
+                    if isinstance(transformer_obj, Pipeline):
+                        for _, step in transformer_obj.steps:
+                            if isinstance(step, (StandardScaler, MinMaxScaler, RobustScaler)):
                                 scaled_features.extend(columns)
-                            if 'onehot' in str(transformer_obj).lower():
+                            elif isinstance(step, OneHotEncoder):
                                 encoded_features.extend(columns)
+                    else:
+                        if isinstance(transformer_obj, (StandardScaler, MinMaxScaler, RobustScaler)):
+                            scaled_features.extend(columns)
+                        elif isinstance(transformer_obj, OneHotEncoder):
+                            encoded_features.extend(columns)
+
             has_preprocessor = bool(scaled_features or encoded_features)
 
         warning = ""
